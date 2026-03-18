@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: product-comparison-api
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  sql:
+    init:
+      mode: always
+  
+  messages:
+    encoding: UTF-8
+    basename: messages
+  
+  cache:
+    type: simple
+    cache-names:
+      - products
+      - product-comparisons
+  
+  # Telemetria e Observabilidade
+  tracing:
+    enabled: true
+    zipkin:
+      endpoint: http://localhost:9411/api/v2/spans
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.compareproduct.meli: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: info,health,caches,metrics,prometheus,httptrace
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        comparisons.duration: true
+        products.fetch.duration: true
+    tags:
+      application: product-comparison-api
+      environment: local
+  info:
+    app:
+      name: Product Comparison API
+      version: 1.0.0
+      description: API para comparação de produtos

@@ -1,0 +1,39 @@
+messages:
+  model:
+    id:
+      notnull: "ID do modelo não pode ser nulo"
+    name:
+      notblank: "Nome do modelo não pode estar em branco"
+      size: "Nome do modelo deve ter entre 1 e 255 caracteres"
+  
+  product:
+    id:
+      notnull: "ID do produto não pode ser nulo"
+    name:
+      notblank: "Nome do produto é obrigatório"
+    price:
+      positive: "Preço deve ser maior que zero"
+    description:
+      notblank: "Descrição é obrigatória"
+    rating:
+      notnull: "Avaliação não pode ser nula"
+    specification:
+      notblank: "Especificação é obrigatória"
+    url:
+      notblank: "URL é obrigatória"
+  
+  exception:
+    product:
+      duplicate: "Produto com mesmo ID já existe"
+      notfound: "Produto com ID informado não foi encontrado"
+    timeout: "Operação excedeu o tempo limite"
+    internal: "Erro interno do servidor"
+  
+  compare:
+    productIds:
+      empty: "Lista de IDs não pode estar vazia"
+      size: "Deve comparar entre 2 e 10 produtos"
+    operation:
+      started: "Iniciando comparação de produtos"
+      completed: "Comparação concluída com sucesso"
+      error: "Erro ao comparar produtos"

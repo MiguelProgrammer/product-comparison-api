@@ -1,0 +1,405 @@
+openapi: 3.0.3
+info:
+  title: Product Comparison API
+  description: API para comparação de produtos com operações CRUD e funcionalidades de comparação
+  version: 1.0.0
+  contact:
+    name: Dev Team
+    email: dev@compareproduct.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Servidor de desenvolvimento local
+  - url: https://api.compareproduct.com/api/v1
+    description: Servidor de produção
+
+paths:
+  # Product CRUD Operations
+  /api/v1/product:
+    get:
+      tags:
+        - Products
+      summary: Listar todos os produtos
+      description: Retorna uma lista com todos os produtos cadastrados
+      operationId: getAllProducts
+      responses:
+        '200':
+          description: Lista de produtos retornada com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      tags:
+        - Products
+      summary: Criar novo produto
+      description: Cria um novo produto no sistema
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '201':
+          description: Produto criado com sucesso
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    delete:
+      tags:
+        - Products
+      summary: Deletar todos os produtos
+      description: Remove todos os produtos do sistema
+      operationId: deleteAllProducts
+      responses:
+        '204':
+          description: Todos os produtos foram deletados com sucesso
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/product/{id}:
+    get:
+      tags:
+        - Products
+      summary: Buscar produto por ID
+      description: Retorna um produto específico pelo seu ID
+      operationId: getProductById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID único do produto
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Produto encontrado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    delete:
+      tags:
+        - Products
+      summary: Deletar produto por ID
+      description: Remove um produto específico do sistema
+      operationId: deleteProductById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID único do produto a ser deletado
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Produto deletado com sucesso
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Product Comparison Operations
+  /api/v1/compare/products:
+    post:
+      tags:
+        - Comparison
+      summary: Comparar produtos (Reativo)
+      description: Compara múltiplos produtos de forma assíncrona e retorna análise comparativa
+      operationId: compareProducts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompareRequest'
+      responses:
+        '200':
+          description: Comparação realizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompareResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    ProductRequest:
+      type: object
+      required:
+        - name
+        - description
+        - price
+        - raiting
+        - specification
+        - url
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID único do produto (opcional para criação)
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Nome do produto
+          example: "iPhone 15 Pro"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Descrição detalhada do produto
+          example: "Smartphone Apple com chip A17 Pro e câmera de 48MP"
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Preço do produto em USD
+          example: 1299.99
+        raiting:
+          $ref: '#/components/schemas/Rating'
+        specification:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Especificações técnicas do produto
+          example: "128GB, Titânio Natural, 5G"
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 500
+          description: URL oficial do produto
+          example: "https://apple.com/iphone15pro"
+
+    ProductResponse:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - price
+        - raiting
+        - specification
+        - url
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID único do produto
+          example: 1
+        name:
+          type: string
+          description: Nome do produto
+          example: "iPhone 15 Pro"
+        description:
+          type: string
+          description: Descrição detalhada do produto
+          example: "Smartphone Apple com chip A17 Pro e câmera de 48MP"
+        price:
+          type: number
+          format: double
+          description: Preço do produto em USD
+          example: 1299.99
+        raiting:
+          $ref: '#/components/schemas/Rating'
+        specification:
+          type: string
+          description: Especificações técnicas do produto
+          example: "128GB, Titânio Natural, 5G"
+        url:
+          type: string
+          format: uri
+          description: URL oficial do produto
+          example: "https://apple.com/iphone15pro"
+
+    CompareRequest:
+      type: object
+      required:
+        - productIds
+      properties:
+        productIds:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Lista de IDs dos produtos a serem comparados
+          example: [1, 2, 3]
+
+    CompareResponse:
+      type: object
+      required:
+        - products
+        - comparison
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+          description: Lista resumida dos produtos comparados
+        comparison:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                - type: number
+                - type: boolean
+          description: Mapa de características comparadas
+          example:
+            price: [1299.99, 1199.99, 699.99]
+            rating: ["AWESOME", "AWESOME", "GOOD"]
+            RAM: ["N/A", "N/A", "N/A"]
+            Storage: ["128GB", "256GB", "128GB"]
+
+    ProductSummary:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - price
+        - rating
+        - specification
+        - url
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID único do produto
+          example: 1
+        name:
+          type: string
+          description: Nome do produto
+          example: "iPhone 15 Pro"
+        description:
+          type: string
+          description: Descrição do produto
+          example: "Smartphone Apple com chip A17 Pro"
+        price:
+          type: number
+          format: double
+          description: Preço do produto
+          example: 1299.99
+        rating:
+          type: string
+          description: Avaliação do produto
+          example: "AWESOME"
+        specification:
+          type: string
+          description: Especificações técnicas
+          example: "128GB, Titânio Natural, 5G"
+        url:
+          type: string
+          format: uri
+          description: URL do produto
+          example: "https://apple.com/iphone15pro"
+
+    Rating:
+      type: string
+      enum:
+        - BAD
+        - MEDIUM
+        - GOOD
+        - AWESOME
+      description: Avaliação qualitativa do produto
+      example: "AWESOME"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Tipo do erro
+          example: "Bad Request"
+        message:
+          type: string
+          description: Mensagem descritiva do erro
+          example: "Nome do produto é obrigatório"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp do erro
+          example: "2024-01-15T10:30:00Z"
+        path:
+          type: string
+          description: Endpoint onde ocorreu o erro
+          example: "/product"
+
+  responses:
+    BadRequest:
+      description: Requisição inválida - dados de entrada incorretos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Bad Request"
+            message: "Nome do produto é obrigatório"
+            timestamp: "2024-01-15T10:30:00Z"
+            path: "/api/v1/product"
+
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Not Found"
+            message: "Produto com ID informado não foi encontrado"
+            timestamp: "2024-01-15T10:30:00Z"
+            path: "/api/v1/product/999"
+
+    InternalServerError:
+      description: Erro interno do servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal Server Error"
+            message: "Erro interno do servidor"
+            timestamp: "2024-01-15T10:30:00Z"
+            path: "/api/v1/product"
+
+tags:
+  - name: Products
+    description: Operações CRUD para gerenciamento de produtos
+  - name: Comparison
+    description: Operações de comparação entre produtos

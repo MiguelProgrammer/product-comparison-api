@@ -1,0 +1,70 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Product Comparison API - Business Metrics",
+    "tags": ["business", "api"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(business_comparisons_successful_total[5m]) / (rate(business_comparisons_successful_total[5m]) + rate(business_comparisons_failed_total[5m])) * 100",
+            "legendFormat": "Success Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Comparisons",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "business_comparisons_successful_total + business_comparisons_failed_total",
+            "legendFormat": "Total"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Active Comparisons",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "business_comparisons_active_current",
+            "legendFormat": "Active"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Products Compared Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(business_products_compared_total[1m])",
+            "legendFormat": "Products/min"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}
