@@ -209,14 +209,6 @@ private String categorizeComparisonSize(int productCount) {
 }
 ```
 
-**Sem Comentários Desnecessários**
-```java
-// Código auto-explicativo sem comentários redundantes
-public void incrementProductCreated() {
-    productCreatedCounter.increment();
-}
-```
-
 ## 📁 Estrutura do Projeto
 
 ```
@@ -518,15 +510,3 @@ management:
 ## 📄 Licença
 
 Este projeto está licenciado sob a [MIT License](LICENSE).
-
-## 📞 Suporte
-
-Para dúvidas, sugestões ou problemas:
-
-- **Issues**: [GitHub Issues](https://github.com/seu-usuario/product-comparison-api/issues)
-- **Documentação**: [Wiki do Projeto](https://github.com/seu-usuario/product-comparison-api/wiki)
-- **Email**: seu-email@exemplo.com
-
----
-
-**Desenvolvido com ❤️ usando Spring Boot, Clean Architecture e as melhores práticas de desenvolvimento.**
