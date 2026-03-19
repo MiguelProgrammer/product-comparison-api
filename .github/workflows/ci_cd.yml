@@ -39,74 +39,81 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
   # FASE 2: DEPLOY NA AWS EC2
-  deploy-ec2:
-    name: "2. Deploy AWS EC2"
-    needs: build-e-entrega
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Atualização via SSH"
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # 1. Login e Pull da imagem nova
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
-            
-            # 2. Garantir a rede
-            docker network create monitoring-network || true
+deploy-ec2:
+  name: "2. Deploy AWS EC2"
+  needs: build-e-entrega
+  runs-on: ubuntu-latest
+  env:
+    # Correção para o aviso de depreciação do Node.js 20 nas Actions
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-            # 3. Configuração do Prometheus (CORRIGIDA PARA HTTP)
-            mkdir -p ~/prometheus
-            cat <<EOF > ~/prometheus/prometheus.yml
-            global:
-              scrape_interval: 15s
-            scrape_configs:
-              - job_name: 'spring-boot-app'
-                metrics_path: '/actuator/prometheus'
-                static_configs:
-                  - targets: ['product-comparison-app:8080']
-            EOF
+  steps:
+    - name: "Atualização via SSH"
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # 1. Login e Pull da imagem nova
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
+          
+          # 2. Garantir a rede
+          docker network create monitoring-network || true
 
-            # Parada total para deploy limpo
-            docker stop product-comparison-app prometheus grafana || true
-            docker rm product-comparison-app prometheus grafana || true
+          # 3. Configuração do Prometheus
+          mkdir -p ~/prometheus
+          cat <<EOF > ~/prometheus/prometheus.yml
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: 'spring-boot-app'
+              metrics_path: '/actuator/prometheus'
+              static_configs:
+                - targets: ['product-comparison-app:8080']
+          EOF
 
-            # 4. APP JAVA
-            docker run -d \
-              --name product-comparison-app \
-              --network monitoring-network \
-              -p 8080:8080 \
-              -e SPRING_SQL_INIT_MODE=always \
-              ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
+          # Parada total para deploy limpo
+          docker stop product-comparison-app prometheus grafana || true
+          docker rm product-comparison-app prometheus grafana || true
 
-            # 5. PROMETHEUS (Com flags de sub-path)
-            docker run -d \
-              --name prometheus \
-              --network monitoring-network \
-              -p 9090:9090 \
-              -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
-              prom/prometheus \
-              --config.file=/etc/prometheus/prometheus.yml \
-              --web.external-url=https://miguelprogrammer-challenge.duckdns.org/prometheus/ \
-              --web.route-prefix=/
+          # 4. APP JAVA (Com Injeção de Secrets e Correção de Password)
+          docker run -d \
+            --name product-comparison-app \
+            --network monitoring-network \
+            -p 8080:8080 \
+            -e SPRING_SQL_INIT_MODE=always \
+            -e DATABASE_USERNAME="${{ secrets.DB_USERNAME }}" \
+            -e DATABASE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            -e DATABASE_URL="jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;PASSWORD=${{ secrets.DB_PASSWORD }}" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
-            # 6. GRAFANA
-            docker volume create grafana-storage || true
-            docker run -d \
-              --name grafana \
-              --user root \
-              --network monitoring-network \
-              -p 3000:3000 \
-              -v grafana-storage:/var/lib/grafana \
-              -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
-              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
-              -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
-              -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
-              -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-              grafana/grafana:latest
-            
-            # 7. Cleanup
-            docker image prune -f
+          # 5. PROMETHEUS
+          docker run -d \
+            --name prometheus \
+            --network monitoring-network \
+            -p 9090:9090 \
+            -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+            prom/prometheus \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --web.external-url=https://miguelprogrammer-challenge.duckdns.org/prometheus/ \
+            --web.route-prefix=/
+
+          # 6. GRAFANA
+          docker volume create grafana-storage || true
+          docker run -d \
+            --name grafana \
+            --user root \
+            --network monitoring-network \
+            -p 3000:3000 \
+            -v grafana-storage:/var/lib/grafana \
+            -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
+            -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
+            -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
+            -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
+            -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
+            grafana/grafana:latest
+          
+          # 7. Cleanup
+          docker image prune -f

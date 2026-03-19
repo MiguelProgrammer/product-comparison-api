@@ -5,8 +5,8 @@ spring:
   datasource:
     url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE} # MELHORIA: Mantém o banco vivo enquanto o app rodar
     driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
-    username: ${DATABASE_USERNAME:sa}
-    password: ${DATABASE_PASSWORD:}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     hikari:
       connection-timeout: 20000
       maximum-pool-size: 20

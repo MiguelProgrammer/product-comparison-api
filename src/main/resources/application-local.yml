@@ -3,8 +3,8 @@ spring:
   datasource:
     url: jdbc:h2:mem:product
     driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
   
   h2:
     console:
