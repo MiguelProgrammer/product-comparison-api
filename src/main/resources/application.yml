@@ -38,7 +38,9 @@ spring:
   sql:
     init:
       mode: ${SQL_INIT_MODE:always}
-      platform: h2 # MELHORIA: Indica explicitamente a plataforma para o data.sql
+      platform: h2
+      # ADICIONE ESTA LINHA ABAIXO:
+      scripts: classpath:database/data.sql
       continue-on-error: true
 
   # MELHORIA: Movido para dentro do bloco spring para sintaxe correta
