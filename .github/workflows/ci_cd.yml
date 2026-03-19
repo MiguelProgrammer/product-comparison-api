@@ -1,0 +1,127 @@
+name: Pipeline CI/CD Java 21 (Developer to Main)
+
+on:
+  push:
+    branches: [ "developer" ]
+
+jobs:
+  # FASE 1: QUALIDADE E TESTES
+  testes-e-cobertura:
+    name: "1. Testes & Cobertura (80%)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout do código"
+        uses: actions/checkout@v4
+
+      - name: "Configurar Amazon Corretto 21"
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: "Executar JUnit e JaCoCo"
+        run: mvn clean verify
+
+      - name: "Validar Cobertura"
+        run: |
+          sudo apt-get install -y libxml2-utils
+          COVERED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" target/site/jacoco/jacoco.xml)
+          MISSED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" target/site/jacoco/jacoco.xml)
+          TOTAL=$((COVERED + MISSED))
+          PERCENTAGE=$(( (COVERED * 100) / TOTAL ))
+          echo "Cobertura atual: $PERCENTAGE%"
+          if [ $PERCENTAGE -lt 80 ]; then 
+            echo "ERRO: Cobertura abaixo de 80% ($PERCENTAGE%)"
+            exit 1
+          fi
+
+  # FASE 2: DOCKER (BUILD, SCAN E PUSH)
+  build-e-entrega:
+    name: "2. Build, Scan e Docker Hub"
+    needs: testes-e-cobertura
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Login no Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: "Build da Imagem"
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
+
+      - name: "Varredura de Segurança (Trivy)"
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: "Push da Imagem Validada"
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+
+  # FASE 3: DEPLOY NA AWS EC2 (PORTA 8080)
+  deploy-ec2:
+    name: "3. Deploy AWS EC2"
+    needs: build-e-entrega
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Atualização via SSH"
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Autenticação no Docker Hub dentro da instância
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            
+            # Atualiza para a imagem que acabamos de subir
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            
+            # Para e limpa o container anterior (se existir)
+            docker stop app-producao || true
+            docker rm app-producao || true
+            
+            # Executa o novo container na porta 8080
+            docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            
+            # Limpeza de imagens antigas para economizar espaço em disco
+            docker image prune -f
+
+  # FASE 4: AUTOMAÇÃO DE PULL REQUEST
+  abrir-pull-request:
+    name: "4. Abrir PR para Main"
+    needs: deploy-ec2
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Criar Pull Request"
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: developer
+          base: main
+          title: "🚀 Release: Developer -> Main"
+          body: |
+            ### 🤖 Relatório de Automação CI/CD
+            As seguintes etapas foram concluídas com sucesso:
+            - ✅ **Testes Unitários:** Aprovados.
+            - ✅ **Cobertura de Código:** Superior a 80%.
+            - ✅ **Segurança:** Imagem Docker validada pelo Trivy (Sem Critical/High).
+            - ✅ **Deploy:** Aplicação atualizada na AWS EC2 (Porta 8080).
+            
+            *Este PR foi gerado automaticamente. Verifique os logs se necessário.*
+          labels: |
+            automated-pr
+            ready-for-review
