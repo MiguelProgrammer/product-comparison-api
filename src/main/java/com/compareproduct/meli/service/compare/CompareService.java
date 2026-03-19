@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface CompareService {
     
-    Mono<CompareResponse> compareProducts(List<Long> productIds) throws Exception;
+    Mono<CompareResponse> compareProducts(List<Long> productIds);
 }

@@ -1,14 +1,60 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'product-comparison-monitor'
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
 
 scrape_configs:
-  - job_name: 'product-comparison-api'
-    static_configs:
-      - targets: ['product-comparison-api:8080']
-    metrics_path: '/actuator/prometheus'
-    scrape_interval: 10s
-    
+  # Prometheus próprio
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Product Comparison API (Local)
+  - job_name: 'product-comparison-api'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 15s
+    metrics_path: /actuator/prometheus
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # JVM Metrics (se habilitado)
+  - job_name: 'jvm-metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 30s
+    metrics_path: /actuator/prometheus
+    params:
+      includedNames: ['jvm.*', 'process.*', 'system.*']
+
+  # Spring Boot Actuator Health
+  - job_name: 'actuator-health'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 60s
+    metrics_path: /actuator/health
+    params:
+      format: ['prometheus']
+
+  # Resilience4j Metrics
+  - job_name: 'resilience4j'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 15s
+    metrics_path: /actuator/prometheus
+    params:
+      includedNames: ['resilience4j.*']

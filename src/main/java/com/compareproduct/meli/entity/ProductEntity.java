@@ -24,7 +24,7 @@ public class ProductEntity {
     private Double price;
 
     @Enumerated(EnumType.STRING)
-    private Rate raiting;
+    private Rate rating;
 
     private String specification;
 
@@ -33,12 +33,12 @@ public class ProductEntity {
     public ProductEntity() {
     }
 
-    public ProductEntity(Long id, String name, String description, Double price, Rate raiting, String specification, String url) {
+    public ProductEntity(Long id, String name, String description, Double price, Rate rating, String specification, String url) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.price = price;
-        this.raiting = raiting;
+        this.rating = rating;
         this.specification = specification;
         this.url = url;
     }
@@ -75,12 +75,12 @@ public class ProductEntity {
         this.price = price;
     }
 
-    public Rate getRaiting() {
-        return raiting;
+    public Rate getRating() {
+        return rating;
     }
 
-    public void setRaiting(Rate raiting) {
-        this.raiting = raiting;
+    public void setRating(Rate rating) {
+        this.rating = rating;
     }
 
     public String getSpecification() {

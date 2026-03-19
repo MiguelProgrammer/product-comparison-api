@@ -3,6 +3,7 @@ package com.compareproduct.meli.controller.compare;
 import com.compareproduct.meli.dto.compare.CompareRequest;
 import com.compareproduct.meli.dto.compare.CompareResponse;
 import com.compareproduct.meli.service.compare.CompareService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.micrometer.tracing.annotation.NewSpan;
 import io.micrometer.tracing.annotation.SpanTag;
 import jakarta.validation.Valid;
@@ -21,7 +22,8 @@ public class CompareController {
     
     @PostMapping(value = "/products", consumes = "application/json")
     @NewSpan("compare-products-endpoint")
-    public Mono<CompareResponse> compareProducts(@RequestBody @Valid @SpanTag("request") CompareRequest request) throws Exception {
+    @RateLimiter(name = "comparison-api")
+    public Mono<CompareResponse> compareProducts(@RequestBody @Valid @SpanTag("request") CompareRequest request) {
         return compareService.compareProducts(request.productIds());
     }
 }

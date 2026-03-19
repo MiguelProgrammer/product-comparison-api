@@ -1,0 +1,118 @@
+groups:
+  - name: product-comparison-api-alerts
+    rules:
+      # RED Metrics Alerts
+      
+      # Rate - High Request Rate
+      - alert: HighRequestRate
+        expr: rate(http_server_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate is {{ $value }} requests/second for the last 5 minutes"
+
+      # Errors - High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_total{status=~"5.."}[5m]) / rate(http_server_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: product-comparison-api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      # Duration - High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # Business Metrics Alerts
+      
+      # Comparison Failures
+      - alert: HighComparisonFailureRate
+        expr: rate(business_comparisons_failed_total[5m]) / rate(business_comparisons_successful_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High comparison failure rate"
+          description: "Comparison failure rate is {{ $value | humanizePercentage }}"
+
+      # Circuit Breaker Open
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          service: product-comparison-api
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Circuit breaker {{ $labels.name }} is in open state"
+
+      # Rate Limiter High Rejection
+      - alert: RateLimiterHighRejection
+        expr: rate(resilience4j_ratelimiter_calls_total{kind="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "Rate limiter rejecting many requests"
+          description: "Rate limiter is rejecting {{ $value }} requests/second"
+
+      # Infrastructure Alerts
+      
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High JVM memory usage"
+          description: "JVM heap memory usage is {{ $value | humanizePercentage }}"
+
+      # High GC Time
+      - alert: HighGCTime
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High garbage collection time"
+          description: "GC time is {{ $value }}s per second"
+
+      # Application Down
+      - alert: ApplicationDown
+        expr: up{job="product-comparison-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: product-comparison-api
+        annotations:
+          summary: "Application is down"
+          description: "Product Comparison API is not responding"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          service: product-comparison-api
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection pool usage is {{ $value | humanizePercentage }}"

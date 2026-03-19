@@ -2,8 +2,9 @@ package com.compareproduct.meli.enums;
 
 public enum Rate {
 
-    BAD,
-    MEDIUM,
-    GOOD,
-    AWESOME
+    ONE_STAR,
+    TWO_STARS,
+    THREE_STARS,
+    FOUR_STARS,
+    FIVE_STARS
 }

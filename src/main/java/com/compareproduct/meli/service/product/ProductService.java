@@ -1,6 +1,7 @@
 package com.compareproduct.meli.service.product;
 
 import com.compareproduct.meli.model.Product;
+import reactor.core.publisher.Flux;
 import java.util.List;
 
 public interface ProductService {
@@ -11,4 +12,5 @@ public interface ProductService {
 
     Product getById(Long id) throws Exception;
     List<Product> getAll();
+    Flux<Product> getByIds(List<Long> ids);
 }

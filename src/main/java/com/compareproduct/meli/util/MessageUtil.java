@@ -19,10 +19,13 @@ public class MessageUtil {
             ResourceBundle bundle = ResourceBundle.getBundle(BUNDLE_NAME, Locale.ROOT);
             return bundle.getString(key);
         } catch (MissingResourceException e) {
-            log.warn("Message not found for key: {}", key);
+            log.warn("Message not found for key: {}", key, e);
             return key; // Retorna a chave se não encontrar a mensagem
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid argument for message key: {}", key, e);
+            return key;
         } catch (Exception e) {
-            log.error("Error loading message for key: {}", key, e);
+            log.error("Unexpected error loading message for key: {}", key, e);
             return key;
         }
     }

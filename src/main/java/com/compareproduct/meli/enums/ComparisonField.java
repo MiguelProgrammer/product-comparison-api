@@ -6,7 +6,7 @@ import java.util.function.Function;
 public enum ComparisonField {
     
     PRICE("price", Product::getPrice),
-    RATING("rating", Product::getRaiting),
+    RATING("rating", Product::getRating),
     SPECIFICATION("specification", Product::getSpecification);
     
     private final String fieldName;

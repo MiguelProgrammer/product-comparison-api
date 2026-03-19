@@ -1,8 +1,6 @@
 package com.compareproduct.meli.service.compare.impl;
 
 import com.compareproduct.meli.dto.compare.CompareResponse;
-import com.compareproduct.meli.enums.ComparisonField;
-import com.compareproduct.meli.exception.ProductNotFoundException;
 import com.compareproduct.meli.model.Product;
 import com.compareproduct.meli.mapper.ProductMapper;
 import com.compareproduct.meli.service.compare.CompareService;
@@ -10,19 +8,13 @@ import com.compareproduct.meli.service.product.ProductService;
 import com.compareproduct.meli.telemetry.metrics.ComparisonMetrics;
 import com.compareproduct.meli.telemetry.metrics.BusinessMetrics;
 import com.compareproduct.meli.util.MessageUtil;
-import io.micrometer.tracing.annotation.NewSpan;
-import io.micrometer.tracing.annotation.SpanTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
-import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class CompareServiceImpl implements CompareService {
@@ -45,58 +37,49 @@ public class CompareServiceImpl implements CompareService {
 
     @Override
     @Cacheable(value = "product-comparisons", key = "#productIds.hashCode()")
-    @NewSpan("compare-products")
-    public Mono<CompareResponse> compareProducts(@SpanTag("productIds") List<Long> productIds) throws Exception {
+    public Mono<CompareResponse> compareProducts(List<Long> productIds) {
         if (productIds == null || productIds.isEmpty()) {
-            return Mono.error(new IllegalArgumentException(MessageUtil.getMessage("messages.compare.productIds.empty")));
+            log.error("COMPARISON_ERROR reason=empty_product_list productIds={}", productIds);
+            businessMetrics.recordFailedComparison();
+            return Mono.error(new IllegalArgumentException(
+                MessageUtil.getMessage("messages.compare.productIds.empty")));
         }
         
-        comparisonMetrics.incrementComparisonRequest();
-        businessMetrics.incrementActiveComparisons();
-        log.debug(MessageUtil.getMessage("messages.compare.operation.started"));
+        log.info("COMPARISON_STARTED productCount={} productIds={}", productIds.size(), productIds);
+        comparisonMetrics.recordComparisonRequest();
+        businessMetrics.recordActiveComparisons(1);
         
-        return comparisonMetrics.recordComparisonTime(() -> {
-            return Flux.fromIterable(productIds)
-                    .flatMap(this::fetchProduct)
-                    .timeout(Duration.ofSeconds(10))
-                    .collectList()
-                    .map(this::buildResponse)
-                    .doOnSuccess(result -> {
-                        businessMetrics.recordSuccessfulComparison(productIds.size());
-                        businessMetrics.decrementActiveComparisons();
-                        log.info(MessageUtil.getMessage("messages.compare.operation.completed"));
-                    })
-                    .doOnError(error -> {
-                        businessMetrics.recordFailedComparison();
-                        businessMetrics.decrementActiveComparisons();
-                        log.error(MessageUtil.getMessage("messages.compare.operation.error"));
-                    });
-        });
-    }
-
-    @NewSpan("fetch-product")
-    private Mono<Product> fetchProduct(@SpanTag("productId") Long id) {
-        return Mono.fromCallable(() -> productService.getById(id))
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorMap(ex -> new ProductNotFoundException(MessageUtil.getMessage("messages.exception.product.notfound")));
+        long startTime = System.currentTimeMillis();
+        
+        return productService.getByIds(productIds)
+                .collectList()
+                .map(this::buildResponse)
+                .doOnSuccess(result -> {
+                    long duration = System.currentTimeMillis() - startTime;
+                    log.info("COMPARISON_SUCCESS productCount={} duration={}ms productsFound={}", 
+                            productIds.size(), duration, result.products().size());
+                    businessMetrics.recordSuccessfulComparison(result.products().size());
+                    businessMetrics.recordActiveComparisons(-1);
+                    comparisonMetrics.recordComparisonDuration(duration);
+                })
+                .doOnError(error -> {
+                    long duration = System.currentTimeMillis() - startTime;
+                    log.error("COMPARISON_ERROR productCount={} duration={}ms error={}", 
+                            productIds.size(), duration, error.getMessage(), error);
+                    businessMetrics.recordFailedComparison();
+                    businessMetrics.recordActiveComparisons(-1);
+                });
     }
 
     private CompareResponse buildResponse(List<Product> products) {
+        Map<String, List<Object>> comparison = new HashMap<>();
+        comparison.put("price", products.stream().map(Product::getPrice).map(Object.class::cast).toList());
+        comparison.put("rating", products.stream().map(Product::getRating).map(Object.class::cast).toList());
+        comparison.put("specification", products.stream().map(Product::getSpecification).map(Object.class::cast).toList());
+        
         return new CompareResponse(
             products.stream().map(productMapper::toProductSummary).toList(),
-            buildComparison(products)
+            comparison
         );
-    }
-
-    private Map<String, List<Object>> buildComparison(List<Product> products) {
-        return Arrays.stream(ComparisonField.values())
-                .collect(Collectors.toMap(
-                    ComparisonField::getFieldName,
-                    field -> products.stream()
-                            .map(field.getExtractor())
-                            .toList(),
-                    (existing, replacement) -> existing,
-                    LinkedHashMap::new
-                ));
     }
 }

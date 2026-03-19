@@ -26,6 +26,8 @@ messages:
     product:
       duplicate: "Produto com mesmo ID já existe"
       notfound: "Produto com ID informado não foi encontrado"
+      fetch_error: "Erro ao buscar produto"
+      temporarily_unavailable: "Produto temporariamente indisponível"
     timeout: "Operação excedeu o tempo limite"
     internal: "Erro interno do servidor"
   

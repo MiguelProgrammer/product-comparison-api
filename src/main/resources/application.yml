@@ -2,29 +2,37 @@ spring:
   application:
     name: product-comparison-api
   datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
+    url: ${DATABASE_URL:jdbc:h2:mem:product}
+    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+      pool-name: ProductComparisonHikariCP
   
   h2:
     console:
-      enabled: true
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
   
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    database-platform: ${HIBERNATE_DIALECT:org.hibernate.dialect.H2Dialect}
     hibernate:
-      ddl-auto: create-drop
-    show-sql: true
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
     defer-datasource-initialization: true
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
   
   sql:
     init:
-      mode: always
+      mode: ${SQL_INIT_MODE:always}
   
   messages:
     encoding: UTF-8
@@ -36,55 +44,178 @@ spring:
       - products
       - product-comparisons
   
-  # Telemetria e Observabilidade
   tracing:
-    enabled: true
+    enabled: ${TRACING_ENABLED:true}
     zipkin:
-      endpoint: http://localhost:9411/api/v2/spans
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
     sampling:
-      probability: 1.0
+      probability: ${TRACING_SAMPLING:0.1}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    com.compareproduct.meli: DEBUG
+    org.hibernate.SQL: ${LOG_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS:WARN}
+    com.compareproduct.meli: ${LOG_APP:INFO}
+    io.github.resilience4j: ${LOG_RESILIENCE:INFO}
+    org.springframework.web: ${LOG_WEB:INFO}
+    root: ${LOG_ROOT:INFO}
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE:logs/product-comparison-api.log}
+    max-size: ${LOG_MAX_SIZE:100MB}
+    max-history: ${LOG_MAX_HISTORY:30}
 
 springdoc:
   api-docs:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-    enabled: true
+    enabled: ${SWAGGER_ENABLED:true}
 
 management:
   endpoints:
     web:
       exposure:
-        include: info,health,caches,metrics,prometheus,httptrace
+        include: ${ACTUATOR_ENDPOINTS:info,health,metrics,prometheus,circuitbreakers,ratelimiters}
+      base-path: /actuator
+      cors:
+        allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:8080}
+        allowed-methods: GET,POST
   endpoint:
     health:
       show-details: always
+      show-components: always
+      probes:
+        enabled: true
     metrics:
       enabled: true
     prometheus:
+      enabled: true
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+    info:
       enabled: true
   metrics:
     export:
       prometheus:
         enabled: true
+        step: ${PROMETHEUS_STEP:30s}
+        descriptions: true
+      cloudwatch:
+        enabled: ${CLOUDWATCH_METRICS_ENABLED:false}
+        namespace: ProductComparisonAPI
+        step: 1m
+        batch-size: 20
     distribution:
       percentiles-histogram:
         http.server.requests: true
         comparisons.duration: true
         products.fetch.duration: true
+        resilience4j.circuitbreaker.calls: true
+        resilience4j.ratelimiter.calls: true
+      percentiles:
+        http.server.requests: 0.5, 0.75, 0.95, 0.99
+        comparisons.duration: 0.5, 0.75, 0.95, 0.99
+        products.fetch.duration: 0.5, 0.75, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms,200ms,500ms,1s,2s,5s
+        comparisons.duration: 50ms,100ms,200ms,500ms,1s
+        products.fetch.duration: 10ms,50ms,100ms,200ms
+      maximum-expected-value:
+        http.server.requests: 10s
+        comparisons.duration: 5s
+        products.fetch.duration: 2s
     tags:
       application: product-comparison-api
-      environment: local
+      environment: ${ENVIRONMENT:production}
+      region: ${AWS_REGION:us-east-1}
+      version: 1.0.0
+      instance: ${HOSTNAME:${random.value}}
+    web:
+      server:
+        request:
+          autotime:
+            enabled: true
+            percentiles: 0.5, 0.95, 0.99
   info:
     app:
       name: Product Comparison API
       version: 1.0.0
       description: API para comparação de produtos
+      encoding: UTF-8
+    env:
+      enabled: ${INFO_ENV_ENABLED:false}
+    java:
+      enabled: true
+    os:
+      enabled: true
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      product-service:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        record-exceptions:
+          - com.compareproduct.meli.exception.ProductNotFoundException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        ignore-exceptions:
+          - com.compareproduct.meli.exception.BadResourceRequestException
+          - java.lang.IllegalArgumentException
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 50
+  
+  ratelimiter:
+    instances:
+      comparison-api:
+        limit-for-period: 100
+        limit-refresh-period: 1m
+        timeout-duration: 5s
+        register-health-indicator: true
+        subscribe-for-events: true
+        allow-health-indicator-to-fail: false
+  
+  retry:
+    instances:
+      product-service:
+        max-attempts: 3
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+  
+  bulkhead:
+    instances:
+      product-service:
+        max-concurrent-calls: 10
+        max-wait-duration: 1s
+  
+  timelimiter:
+    instances:
+      product-service:
+        timeout-duration: 3s
+        cancel-running-future: true
+  
+  metrics:
+    enabled: true
+    legacy:
+      enabled: false
+  
+  health:
+    enabled: true

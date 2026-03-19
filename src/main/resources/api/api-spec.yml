@@ -18,7 +18,7 @@ servers:
 
 paths:
   # Product CRUD Operations
-  /api/v1/product:
+  /products:
     get:
       tags:
         - Products
@@ -69,7 +69,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/product/{id}:
+  /products/{id}:
     get:
       tags:
         - Products
@@ -121,7 +121,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   # Product Comparison Operations
-  /api/v1/compare/products:
+  /compare/products:
     post:
       tags:
         - Comparison
@@ -329,37 +329,28 @@ components:
     Rating:
       type: string
       enum:
-        - BAD
-        - MEDIUM
-        - GOOD
-        - AWESOME
+        - ONE_STAR
+        - TWO_STARS
+        - THREE_STARS
+        - FOUR_STARS
+        - FIVE_STARS
       description: Avaliação qualitativa do produto
-      example: "AWESOME"
+      example: "FIVE_STARS"
 
     ErrorResponse:
       type: object
       required:
-        - error
         - message
-        - timestamp
+        - status
       properties:
-        error:
-          type: string
-          description: Tipo do erro
-          example: "Bad Request"
         message:
           type: string
           description: Mensagem descritiva do erro
-          example: "Nome do produto é obrigatório"
-        timestamp:
-          type: string
-          format: date-time
-          description: Timestamp do erro
-          example: "2024-01-15T10:30:00Z"
-        path:
-          type: string
-          description: Endpoint onde ocorreu o erro
-          example: "/product"
+          example: "Product not found"
+        status:
+          type: integer
+          description: Código de status HTTP
+          example: 404
 
   responses:
     BadRequest:
@@ -369,10 +360,8 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            error: "Bad Request"
-            message: "Nome do produto é obrigatório"
-            timestamp: "2024-01-15T10:30:00Z"
-            path: "/api/v1/product"
+            message: "Product not found"
+            status: 404
 
     NotFound:
       description: Recurso não encontrado
@@ -381,10 +370,8 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            error: "Not Found"
-            message: "Produto com ID informado não foi encontrado"
-            timestamp: "2024-01-15T10:30:00Z"
-            path: "/api/v1/product/999"
+            message: "Product not found"
+            status: 404
 
     InternalServerError:
       description: Erro interno do servidor
@@ -393,10 +380,8 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            error: "Internal Server Error"
-            message: "Erro interno do servidor"
-            timestamp: "2024-01-15T10:30:00Z"
-            path: "/api/v1/product"
+            message: "Internal server error"
+            status: 500
 
 tags:
   - name: Products

@@ -50,6 +50,10 @@ public class BusinessMetrics {
         activeComparisons.decrementAndGet();
     }
 
+    public void recordActiveComparisons(int delta) {
+        activeComparisons.addAndGet(delta);
+    }
+
     public double getSuccessfulComparisons() {
         return successfulComparisonsCounter.count();
     }

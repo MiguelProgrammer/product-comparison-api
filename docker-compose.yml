@@ -1,22 +1,32 @@
 version: '3.8'
 
 services:
-  # API Spring Boot
+  # Aplicação Principal
   product-comparison-api:
     build: .
     ports:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-    networks:
-      - monitoring
+      - DATABASE_URL=jdbc:h2:mem:product
+      - TRACING_ENABLED=true
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - PROMETHEUS_STEP=15s
+      - LOG_LEVEL=INFO
     depends_on:
       - prometheus
+      - zipkin
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Prometheus para coleta de métricas
+  # Prometheus - Coleta de Métricas
   prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
+    image: prom/prometheus:v2.45.0
     ports:
       - "9090:9090"
     volumes:
@@ -27,66 +37,70 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
+      - '--storage.tsdb.retention.time=15d'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Grafana para visualização
+  # Grafana - Visualização de Métricas
   grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+    image: grafana/grafana:10.0.0
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin123
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
-      - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-    networks:
-      - monitoring
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Alpine para testes e debug
-  alpine-metrics:
-    image: alpine:latest
-    container_name: alpine-metrics
-    command: >
-      sh -c "
-        apk add --no-cache curl jq &&
-        echo '=== Container Alpine Pronto ===' &&
-        echo 'Comandos para testar métricas:' &&
-        echo '' &&
-        echo '1. Health da API:' &&
-        echo '   curl http://product-comparison-api:8080/actuator/health' &&
-        echo '' &&
-        echo '2. Todas as métricas:' &&
-        echo '   curl http://product-comparison-api:8080/actuator/metrics' &&
-        echo '' &&
-        echo '3. Métricas Prometheus:' &&
-        echo '   curl http://product-comparison-api:8080/actuator/prometheus' &&
-        echo '' &&
-        echo '4. Métrica específica:' &&
-        echo '   curl http://product-comparison-api:8080/actuator/metrics/business.comparisons.successful.total' &&
-        echo '' &&
-        echo '5. Status Prometheus:' &&
-        echo '   curl http://prometheus:9090/api/v1/query?query=up' &&
-        echo '' &&
-        echo 'Acesse Grafana em: http://localhost:3000 (admin/admin123)' &&
-        echo 'Acesse Prometheus em: http://localhost:9090' &&
-        echo '===============================' &&
-        tail -f /dev/null
-      "
+  # Zipkin - Distributed Tracing
+  zipkin:
+    image: openzipkin/zipkin:2.24
+    ports:
+      - "9411:9411"
+    environment:
+      - STORAGE_TYPE=mem
     networks:
       - monitoring
-    depends_on:
-      - product-comparison-api
-      - prometheus
-      - grafana
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AlertManager - Alertas (Opcional)
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - monitoring
+    profiles:
+      - alerts
 
 volumes:
   prometheus_data:

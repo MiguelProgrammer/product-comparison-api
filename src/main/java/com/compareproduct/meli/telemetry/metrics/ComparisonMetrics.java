@@ -27,6 +27,14 @@ public class ComparisonMetrics {
         comparisonRequestCounter.increment();
     }
 
+    public void recordComparisonRequest() {
+        comparisonRequestCounter.increment();
+    }
+
+    public void recordComparisonDuration(long durationMs) {
+        comparisonTimer.record(durationMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
     public <T> T recordComparisonTime(Callable<T> operation) throws Exception {
         return comparisonTimer.recordCallable(operation);
     }

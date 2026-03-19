@@ -22,4 +22,7 @@ public interface ProductMapper {
     Product toProduct(ProductEntity productEntity);
 
     CompareResponse.ProductSummary toProductSummary(Product product);
+
+    // Additional mapping method for ProductRecord to ProductEntity
+    ProductEntity toEntity(ProductRecord productRecord);
 }

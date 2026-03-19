@@ -19,7 +19,7 @@ public record ProductRecord(
     Double price,
     
     @NotNull(message = "{messages.product.rating.notnull}")
-    Rate raiting,
+    Rate rating,
     
     @NotBlank(message = "{messages.product.specification.notblank}")
     String specification,
