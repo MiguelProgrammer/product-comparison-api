@@ -1,12 +1,11 @@
-name: Pipeline CI/CD Java 21
+name: Pipeline CI/CD Java 21 (Final - Segurança OK)
 
 on:
   push:
     branches: [ "developer" ]
 
 jobs:
-  # UNIFICADO: Testes, Build do JAR e Push para Docker Hub
-  # Fazemos tudo em um único Job para o Docker encontrar a pasta /target
+  # FASE 1: BUILD, TESTES E DOCKER (Com Scan de Segurança)
   build-e-entrega:
     name: "1. Build, Teste e Docker"
     runs-on: ubuntu-latest
@@ -22,7 +21,8 @@ jobs:
           cache: 'maven'
 
       - name: "Gerar Artefato (JAR)"
-        # O comando 'package' roda os testes E cria o arquivo em target/*.jar
+        # O 'package' executa os testes unitários (Surefire) e de integração (Failsafe)
+        # Se algum teste falhar, o pipeline para aqui.
         run: mvn clean package
 
       - name: "Login no Docker Hub"
@@ -31,8 +31,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build e Tag da Imagem"
-        # Agora o target/*.jar EXISTE nesta máquina virtual
+      - name: "Build da Imagem Docker"
+        # Certifica-te que o teu Dockerfile tem o 'RUN apk upgrade' para passar no Trivy
         run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
 
       - name: "Varredura de Segurança (Trivy)"
@@ -40,13 +40,13 @@ jobs:
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
           format: 'table'
-          exit-code: '1'
+          exit-code: '1' # Bloqueia o deploy se houver vulnerabilidades CRITICAL ou HIGH
           severity: 'CRITICAL,HIGH'
 
       - name: "Push para o Docker Hub"
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
 
-  # FASE 2: DEPLOY NA AWS EC2
+  # FASE 2: DEPLOY NA AWS EC2 (Via SSH)
   deploy-ec2:
     name: "2. Deploy AWS EC2"
     needs: build-e-entrega
@@ -59,23 +59,23 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Autentica no Docker Hub dentro da EC2
+            # Autenticação no Docker Hub na instância
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            # Puxa a imagem mais nova
+            # Download da imagem atualizada
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Remove container antigo se existir
+            # Gestão do container (Para e remove o anterior)
             docker stop app-producao || true
             docker rm app-producao || true
             
-            # Sobe o novo container na porta 8080
+            # Execução na porta 8080 (Configurada no Security Group da AWS)
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Limpa lixo de imagens antigas
+            # Limpeza de imagens órfãs para poupar disco
             docker image prune -f
 
-  # FASE 3: PULL REQUEST AUTOMÁTICO
+  # FASE 3: AUTOMAÇÃO DE PULL REQUEST
   abrir-pull-request:
     name: "3. Abrir PR para Main"
     needs: deploy-ec2
@@ -93,12 +93,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release: Dev -> Main"
+          title: "🚀 Release: Developer -> Main"
           body: |
-            ### 🤖 Relatório de Deploy
-            - ✅ Build do JAR realizado.
-            - ✅ Testes unitários e E2E aprovados.
-            - ✅ Imagem Docker enviada.
-            - ✅ Deploy realizado na porta 8080.
+            ### 🤖 Relatório Automático de Pipeline
+            - ✅ **Build & Testes:** Maven package concluído (Unitários + E2E).
+            - ✅ **Segurança:** Varredura Trivy aprovada (Patches aplicados).
+            - ✅ **Docker Hub:** Imagem enviada com sucesso.
+            - ✅ **AWS Deploy:** Container atualizado na porta 8080.
           labels: |
             automated-pr
+            ready-for-merge
