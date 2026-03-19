@@ -1,161 +1,44 @@
-#name: Pipeline CI/CD
-#
-#on:
-#  push:
-#    branches: [ "developer" ]
-#
-## Resolve o aviso de "Node.js 20 actions are deprecated" globalmente
-#env:
-#  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-#
-#jobs:
-#  # FASE 1: BUILD, TESTES E DOCKER
-#  build-e-entrega:
-#    name: "1. Build, Teste e Docker"
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: "Checkout do código"
-#        uses: actions/checkout@v4
-#
-#      - name: "Configurar Java 21 (Amazon Corretto)"
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: '21'
-#          distribution: 'corretto'
-#          cache: 'maven'
-#
-#      - name: "Gerar Artefato (JAR)"
-#        run: mvn clean package -DskipTests
-#
-#      - name: "Login no Docker Hub"
-#        uses: docker/login-action@v3
-#        with:
-#          username: ${{ secrets.DOCKERHUB_USERNAME }}
-#          password: ${{ secrets.DOCKERHUB_TOKEN }}
-#
-#      - name: "Build e Push da Imagem"
-#        run: |
-#          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest .
-#          docker push ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
-#
-#  # FASE 2: DEPLOY NA AWS EC2 (Com passos visíveis)
-#  deploy-ec2:
-#    name: "2. Deploy AWS EC2"
-#    needs: build-e-entrega
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: "1. Preparar Ambiente e Pull"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-#            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
-#            docker network create monitoring-network || true
-#            docker stop product-comparison-app prometheus grafana || true
-#            docker rm product-comparison-app prometheus grafana || true
-#
-#      - name: "2. Configurar Prometheus Config"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            mkdir -p ~/prometheus
-#            cat <<EOF > ~/prometheus/prometheus.yml
-#            global:
-#              scrape_interval: 5s
-#            scrape_configs:
-#              - job_name: 'spring-boot-app'
-#                metrics_path: '/actuator/prometheus'
-#                static_configs:
-#                  - targets: ['product-comparison-app:8080']
-#            EOF
-#
-#      - name: "3. Deploy APP JAVA (Spring Boot)"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            docker run -d \
-#              --name product-comparison-app \
-#              --network monitoring-network \
-#              -p 8080:8080 \
-#              -e SPRING_SQL_INIT_MODE=always \
-#              -e DATABASE_USERNAME="${{ secrets.DB_USERNAME }}" \
-#              -e DATABASE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-#              -e DATABASE_URL="jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;PASSWORD=${{ secrets.DB_PASSWORD }}" \
-#              ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
-#
-#      - name: "4. Deploy Prometheus"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            docker run -d \
-#              --name prometheus \
-#              --network monitoring-network \
-#              -p 9090:9090 \
-#              -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
-#              prom/prometheus \
-#              --config.file=/etc/prometheus/prometheus.yml \
-#              --web.external-url=https://miguelprogrammer-challenge.duckdns.org/prometheus/ \
-#              --web.route-prefix=/
-#
-#      - name: "5. Deploy Grafana"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            docker volume create grafana-storage || true
-#            docker run -d \
-#              --name grafana \
-#              --user root \
-#              --network monitoring-network \
-#              -p 3000:3000 \
-#              -v grafana-storage:/var/lib/grafana \
-#              -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
-#              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
-#              -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
-#              -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
-#              -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-#              grafana/grafana:latest
-#
-#      - name: "6. Cleanup"
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: docker image prune -f
-#
-#  # FASE 3: GERAR TRÁFEGO (25 REQUISIÇÕES POR SEGUNDO)
-#  gerar-trafego:
-#    name: "3. Alimentar Grafana (25 RPS)"
-#    needs: deploy-ec2
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: "Aguardar Serviços (30s)"
-#        run: sleep 30
-#
-#      - name: "Instalar Hey"
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install -y wget
-#          wget https://hey-release.s3.us-east-2.amazonaws.com/hey_linux_amd64
-#          chmod +x hey_linux_amd64
-#          sudo mv hey_linux_amd64 /usr/local/bin/hey
-#
-#      - name: "Gerar Carga Constante 10s a 25 RPS"
-#        run: |
-#          # -q 25: Limita a 25 requisições por segundo
-#          hey -q 25 -z 10s https://miguelprogrammer-challenge.duckdns.org/api/v1/products
+name: Pipeline CI - Developer Validation
+
+on:
+  push:
+    branches: [ "developer" ]
+  pull_request:
+    branches: [ "developer" ]
+
+# Resolve o aviso de "Node.js 20 actions are deprecated"
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # JOB ÚNICO: VALIDAÇÃO DE QUALIDADE
+  validate-code:
+    name: "Unit Tests & Quality Check"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout do código"
+        uses: actions/checkout@v4
+
+      - name: "Configurar Java 21 (Amazon Corretto)"
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: "Executar Testes Unitários e Integrados"
+        # Aqui garantimos que o build só passa se 100% dos testes passarem
+        run: mvn clean test
+
+      - name: "Verificar Compilação (Checkstyle/Lint)"
+        # Garante que o artefato pode ser gerado sem erros de compilação
+        run: mvn package -DskipTests
+
+      - name: "Publicar Relatório de Testes (Opcional)"
+        # Isso ajuda a ver quais testes falharam diretamente na interface do GitHub
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/surefire-reports/
