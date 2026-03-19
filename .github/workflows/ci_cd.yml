@@ -155,8 +155,7 @@ jobs:
           chmod +x hey_linux_amd64
           sudo mv hey_linux_amd64 /usr/local/bin/hey
 
-      - name: "Gerar Carga Constante (2 minutos)"
+      - name: "Gerar Carga Constante 10s a 25 RPS"
         run: |
           # -q 25: Limita a 25 requisições por segundo
-          # -z 2m: Roda por 2 minutos (tempo suficiente para o Grafana atualizar)
-          hey -q 25 -z 2m https://miguelprogrammer-challenge.duckdns.org/api/products
+          hey -q 25 -z 10s https://miguelprogrammer-challenge.duckdns.org/api/v1/products
