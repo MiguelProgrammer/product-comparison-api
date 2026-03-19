@@ -14,7 +14,7 @@
 
     <groupId>com.compareproduct</groupId>
     <artifactId>product-comparison-api</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -173,8 +173,9 @@
             <version>2.25.0</version>
             <scope>test</scope>
         </dependency>
-        
-        <!-- REST Assured for E2E Tests -->
+
+
+        <!-- REST Assured for E2E tests -->
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
