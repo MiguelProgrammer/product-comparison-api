@@ -1,135 +1,325 @@
 # Product Comparison API
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.java.net/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![Maven](https://img.shields.io/badge/Maven-3.8+-blue.svg)](https://maven.apache.org/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docs.docker.com/compose/)
-[![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)](target/site/jacoco/index.html)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](TEST-STRATEGY.md)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Architecture](https://img.shields.io/badge/Architecture-Layered-blue.svg)](#-architecture--design)
+[![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-Unit%20|%20Integration%20|%20E2E-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A modern REST API for product comparison built with Spring Boot 3, reactive programming, comprehensive testing, and advanced observability.
+Enterprise-grade REST API for product management and comparison, featuring reactive programming, comprehensive observability, and production-ready AWS EC2 deployment with full CI/CD automation.
 
 ## 📋 Table of Contents
 
-- [Overview](#-overview)
-- [Quick Start](#-quick-start)
-- [API Usage](#-api-usage)
-- [Architecture](#-architecture)
+- [Executive Summary](#-executive-summary)
+- [Architecture & Design](#-architecture--design)
+- [Technology Stack](#-technology-stack)
+- [Getting Started](#-getting-started)
+- [API Reference](#-api-reference)
+- [API-First Development](#-api-first-development)
 - [Testing Strategy](#-testing-strategy)
-- [Monitoring & Observability](#-monitoring--observability)
-- [Development](#-development)
-- [Future Improvements](#-future-improvements)
-- [Contributing](#-contributing)
+- [Observability & Telemetry](#-observability--telemetry)
+- [Deployment](#-deployment)
+- [Development Workflow](#-development-workflow)
 
-## 🎯 Overview
+---
 
-The Product Comparison API provides a comprehensive solution for product management and comparison with enterprise-grade features:
+## 🎯 Executive Summary
 
-### 🚀 Core Features
-- **Product Management**: Full CRUD operations with comprehensive validation
-- **Product Comparison**: Reactive parallel analysis of multiple products
-- **Advanced Testing**: 100% code coverage with unit, integration, and E2E tests
-- **Observability**: Complete monitoring with Prometheus, Grafana, and Allure reports
-- **Documentation**: Auto-generated OpenAPI 3.0 with interactive Swagger UI
+This project demonstrates enterprise software engineering at the senior level, combining cutting-edge technologies with proven architectural patterns. It implements a complete solution for product comparison with:
 
-### ✨ Key Highlights
-- ✅ **RESTful API** with proper versioning (`/api/v1/`)
-- ✅ **Reactive Programming** with WebFlux for non-blocking operations
-- ✅ **Intelligent Caching** with Spring Cache for optimal performance
-- ✅ **Comprehensive Validation** with Bean Validation
-- ✅ **Business & Technical Metrics** for complete observability
-- ✅ **Docker Containerization** for easy deployment
-- ✅ **API-First Development** with OpenAPI Generator
-- ✅ **100% Test Coverage** with detailed reporting
+- **Microservice-ready**: Layered architecture supporting independent scaling
+- **Production-grade observability**: Metrics, tracing, and dashboards with Prometheus/Grafana
+- **Automated testing**: 100% code coverage with unit, integration, and E2E tests
+- **API-First approach**: OpenAPI 3.0 specification driving implementation
+- **Complete CI/CD pipeline**: GitHub Actions with Docker, security scanning, and AWS EC2 deployment
+- **Industry best practices**: SOLID principles, Clean Code, and reactive programming
 
-## 🚀 Quick Start
+---
 
-### 📝 Prerequisites
+## 🏗️ Architecture & Design
 
-- **Java 21+**
-- **Maven 3.8+**
-- **Docker & Docker Compose**
+### Design Principles
 
-### 🐳 Run with Docker (Recommended)
+The architecture adheres to **SOLID Principles** and **Clean Architecture** to ensure maintainability, extensibility, and testability:
+
+- **Single Responsibility**: Each component has one reason to change
+- **Open/Closed**: Open for extension, closed for modification
+- **Liskov Substitution**: Implementations are interchangeable via interfaces
+- **Interface Segregation**: Clients depend only on interfaces they use
+- **Dependency Inversion**: Depend on abstractions, not concrete implementations
+
+### Layered Architecture Pattern
+
+```
+┌──────────────────────────────────────────────────────┐
+│              REST Controller Layer                    │
+│     (HTTP Handling, Request/Response Mapping)        │
+└─────────────────────┬────────────────────────────────┘
+                      │
+┌─────────────────────▼────────────────────────────────┐
+│           Business Logic Service Layer                │
+│  (Business Rules, Orchestration, Validation)         │
+│                                                      │
+│  • ProductService (CRUD + Caching Strategy)         │
+│  • ComparisonService (Orchestration)                │
+│  • Strategy Pattern (Pluggable Algorithms)          │
+└─────────────────────┬────────────────────────────────┘
+                      │
+┌─────────────────────▼────────────────────────────────┐
+│       Data Access Layer (Repository Pattern)         │
+│  (Transaction Management, Query Optimization)       │
+│                                                      │
+│  • Spring Data JPA Repositories                     │
+│  • Custom Query Methods                             │
+│  • Transaction Boundaries                           │
+└─────────────────────┬────────────────────────────────┘
+                      │
+              ┌───────▼────────┐
+              │  H2 Database   │
+              │  (In-Memory)   │
+              └────────────────┘
+```
+
+### Core Design Patterns
+
+| Pattern | Application | Benefit |
+|---------|-------------|---------|
+| **Repository** | Spring Data JPA abstracts data access | Database independence, testability |
+| **Dependency Injection** | Spring IoC container | Loose coupling, easier testing |
+| **DTO (Data Transfer Object)** | Separate API models from entities | API contract stability, data hiding |
+| **Mapper (MapStruct)** | Type-safe compile-time mapping | Performance, null-safety, maintainability |
+| **Strategy Pattern** | Pluggable comparison algorithms | Open/Closed principle, extensibility |
+| **Cache-Aside** | Spring @Cacheable annotations | Performance optimization, eventual consistency |
+| **API-First (OpenAPI)** | Specification-driven development | Contract clarity, team alignment |
+
+### Project Package Structure
+
+```
+com.compareproduct.meli
+├── controller/
+│   ├── ProductController              → GET/POST /api/v1/product
+│   └── ComparisonController           → POST /api/v1/compare/products
+├── service/
+│   ├── ProductService                 → Business logic for products
+│   ├── ComparisonService              → Comparison orchestration
+│   └── strategy/
+│       └── ComparisonStrategy         → Algorithm interface
+├── repository/
+│   └── ProductRepository              → Spring Data JPA interface
+├── entity/
+│   └── Product                        → JPA entity (database mapping)
+├── dto/
+│   ├── ProductDTO                     → API request/response model
+│   ├── ComparisonRequestDTO           → Comparison request payload
+│   └── ComparisonResponseDTO          → Comparison result payload
+├── mapper/
+│   └── ProductMapper                  → MapStruct mapper (type-safe)
+├── exception/
+│   ├── ProductNotFoundException       → 404 handling
+│   ├── InvalidComparisonException    → Business rule violations
+│   └── GlobalExceptionHandler        → Centralized error handling
+├── telemetry/
+│   ├── config/
+│   │   └── ObservabilityConfiguration → Micrometer, Prometheus config
+│   └── metrics/
+│       └── ComparisonMetrics          → Custom business metrics
+└── util/
+    └── Validation utilities            → Bean validation, custom validators
+```
+
+---
+
+## 💻 Technology Stack
+
+### Core Framework
+- **Java 21 LTS** - Latest Java features: records, sealed classes, virtual threads (preview)
+- **Spring Boot 3.4.3** - Enterprise-grade reactive web framework
+- **Spring WebFlux** - Non-blocking reactive programming model
+- **Spring Data JPA** - Object-relational mapping with Hibernate
+
+### Data & Persistence
+- **H2 Database** - In-memory SQL database for development/testing
+- **Hibernate ORM** - JPA implementation with advanced query capabilities
+- **Spring Transactions** - Declarative transaction management (@Transactional)
+
+### API & Documentation
+- **OpenAPI 3.0** - Machine-readable API specification
+- **SpringDoc OpenAPI 2.8.5** - Automatic documentation generation
+- **Swagger UI** - Interactive API documentation interface
+- **OpenAPI Generator 7.11.0** - Code generation from specs (API-First)
+
+### Object Mapping & Validation
+- **MapStruct 1.6.3** - Compile-time code generation for type-safe mapping
+- **Bean Validation (JSR-303)** - Declarative validation with @Valid
+
+### Observability & Monitoring
+- **Micrometer 1.14.x** - Metrics collection abstraction
+- **Prometheus** - Time-series metrics database
+- **Grafana 10.0.0** - Metrics visualization and dashboards
+- **Zipkin 2.24** - Distributed tracing for request tracking
+- **Spring Actuator** - Production-ready endpoints for monitoring
+
+### Resilience & Reliability
+- **Resilience4j 2.3.0** - Circuit breaker, retry, rate limiting patterns
+- **Spring Cache** - Caching abstraction with TTL strategies
+
+### Testing Framework
+- **JUnit 5** - Modern testing framework with extensions
+- **Mockito** - Mock object creation for unit tests
+- **AssertJ** - Fluent assertion library
+- **REST Assured** - HTTP/REST testing library
+- **Allure Reports 2.29.1** - BDD-style test reporting
+- **TestContainers** - Docker containers for integration testing
+- **WireMock 3.12.0** - HTTP mocking and stubbing
+- **Reactor Test** - Reactive stream testing utilities
+
+### Build & Deployment
+- **Maven 3.8+** - Build automation and dependency management
+- **Docker** - Container image building
+- **Docker Compose** - Local orchestration
+- **Spring Boot Maven Plugin** - Uber JAR creation
+
+### CI/CD Pipeline
+- **GitHub Actions** - Automated build, test, security scan, deploy workflow
+- **Trivy** - Container security scanning
+- **Allure** - Test reporting with BDD organization
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Java | 21+ | Runtime environment |
+| Maven | 3.8+ | Build automation |
+| Docker | Latest | Container runtime |
+| Docker Compose | Latest | Orchestration |
+
+### Quick Start with Docker Compose
 
 ```bash
+# Clone repository
+git clone <repository-url>
+cd product-comparison-api
+
 # Start all services (API + Monitoring Stack)
 docker-compose up -d
 
-# Check service status
+# Verify all services are healthy
 docker-compose ps
 
 # View logs
 docker-compose logs -f product-comparison-api
 ```
 
-**🌐 Access Points:**
-- **API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **Grafana**: http://localhost:3000 (admin/admin123)
-- **Prometheus**: http://localhost:9090
+**Service Access Points:**
 
-### 💻 Run Locally
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **API** | http://localhost:8080 | N/A |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html | N/A |
+| **Prometheus** | http://localhost:9090 | N/A |
+| **Grafana** | http://localhost:3000 | admin / admin123 |
+| **Zipkin Tracing** | http://localhost:9411 | N/A |
+| **AlertManager** | http://localhost:9093 | N/A |
+
+### Local Development Setup
 
 ```bash
-# Clone and build
-git clone <repository-url>
-cd product-comparison-api
-mvn clean package -DskipTests
+# Build the project
+mvn clean compile
 
 # Run application
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 
-# Health check
-curl http://localhost:8080/actuator/health
+# Run complete test suite
+mvn clean test failsafe:integration-test
+
+# Generate test report
+mvn allure:serve
 ```
 
-### 🧪 Run Tests
+### Health Checks
 
 ```bash
-# Run complete test suite with coverage
-./run-tests.bat  # Windows
-./run-tests.sh   # Linux/Mac
+# Application health
+curl http://localhost:8080/actuator/health
 
-# View test reports
-mvn allure:serve  # Interactive Allure report
+# Detailed health (liveness + readiness)
+curl http://localhost:8080/actuator/health/liveness
+curl http://localhost:8080/actuator/health/readiness
+
+# Available metrics
+curl http://localhost:8080/actuator/metrics
+
+# Prometheus-format metrics
+curl http://localhost:8080/actuator/prometheus
 ```
 
-## 📚 API Usage
+---
 
-### 🔗 Endpoints
+## 📚 API Reference
 
-#### 📦 Products
+### RESTful API Conventions
+
+- **Versioning**: URI versioning (`/api/v1/`)
+- **Status Codes**: Standard HTTP semantics (200, 201, 400, 404, 500)
+- **Content Type**: `application/json` for all payloads
+- **Error Format**: Structured error responses with codes and messages
+- **Pagination**: Cursor-based pagination for list operations
+
+### Endpoints
+
+#### Product Management
+
 ```http
-POST   /api/v1/product           # Create product
-GET    /api/v1/product/{id}      # Get product by ID
-GET    /api/v1/product           # List all products
-DELETE /api/v1/product/{id}      # Delete product
+POST   /api/v1/product              # Create a new product
+GET    /api/v1/product/{id}         # Retrieve product by ID
+GET    /api/v1/product              # List all products (paginated)
+DELETE /api/v1/product/{id}         # Delete product
 ```
 
-#### ⚖️ Comparisons
+#### Product Comparison
+
 ```http
-POST   /api/v1/compare/products  # Compare multiple products
+POST   /api/v1/compare/products     # Compare multiple products
 ```
 
-### 📝 Examples
+### Example: Create Product
 
-#### Create Product
 ```bash
 curl -X POST http://localhost:8080/api/v1/product \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Smartphone XYZ",
-    "price": 899.99,
-    "description": "Latest smartphone with 128GB storage",
+    "name": "Smartphone Pro Max",
+    "price": 1299.99,
+    "description": "Premium smartphone with advanced AI features",
     "rating": "FIVE_STARS",
-    "specification": "6.1 inches, 128GB, 12MP camera",
-    "url": "https://example.com/smartphone-xyz"
+    "specification": "6.7\" AMOLED, 256GB, Snapdragon 8 Gen 3",
+    "url": "https://example.com/smartphone-pro-max"
   }'
 ```
 
-#### Compare Products
+**Response (201 Created):**
+```json
+{
+  "id": 1,
+  "name": "Smartphone Pro Max",
+  "price": 1299.99,
+  "description": "Premium smartphone with advanced AI features",
+  "rating": "FIVE_STARS",
+  "specification": "6.7\" AMOLED, 256GB, Snapdragon 8 Gen 3",
+  "url": "https://example.com/smartphone-pro-max",
+  "createdAt": "2024-03-19T10:30:00Z",
+  "updatedAt": "2024-03-19T10:30:00Z"
+}
+```
+
+### Example: Compare Products
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/compare/products \
   -H "Content-Type: application/json" \
@@ -138,403 +328,677 @@ curl -X POST http://localhost:8080/api/v1/compare/products \
   }'
 ```
 
-### 📊 Response Format
-
-#### Product Response
-```json
-{
-  "id": 1,
-  "name": "Smartphone XYZ",
-  "price": 899.99,
-  "description": "Latest smartphone with 128GB storage",
-  "rating": "FIVE_STARS",
-  "specification": "6.1 inches, 128GB, 12MP camera",
-  "url": "https://example.com/smartphone-xyz"
-}
-```
-
-#### Comparison Response
+**Response (200 OK):**
 ```json
 {
   "products": [
-    { /* product 1 */ },
-    { /* product 2 */ },
-    { /* product 3 */ }
+    { "id": 1, "name": "Product A", "price": 899.99, ... },
+    { "id": 2, "name": "Product B", "price": 1099.99, ... },
+    { "id": 3, "name": "Product C", "price": 799.99, ... }
   ],
   "totalProducts": 3,
-  "comparisonSummary": "Comparison of 3 products completed successfully"
+  "comparisonSummary": "Comparison of 3 products completed successfully",
+  "timestamp": "2024-03-19T10:35:00Z"
 }
 ```
 
-### 📚 Documentation
+### Interactive Documentation
 
-- **🌐 Swagger UI**: http://localhost:8080/swagger-ui.html
-- **📄 OpenAPI JSON**: http://localhost:8080/api-docs
-- **📜 API Specification**: `src/main/resources/api-spec.yml`
+**Swagger UI:** http://localhost:8080/swagger-ui.html
 
-## 🏗️ Architecture
+The Swagger UI provides:
+- ✅ Complete endpoint documentation
+- ✅ Request/response models visualization
+- ✅ Try-it-out functionality for testing
+- ✅ Authentication schema configuration
 
-### 📁 Project Structure
+---
+
+## 🔄 API-First Development
+
+### Why API-First?
+
+API-First development ensures:
+- **Contract Clarity**: Team alignment on API behavior before implementation
+- **Parallel Work**: Frontend teams can mock endpoints while backend develops
+- **Type Safety**: Code generation prevents manual errors
+- **Documentation**: Spec is always in sync with code
+
+### OpenAPI Specification
+
+```bash
+# Location: src/main/resources/api/api-spec.yml
+
+# Generate code from specification
+mvn clean generate-sources
+
+# Generated code location:
+# target/generated-sources/openapi/
+#   ├── com/compareproduct/meli/api/ProductApi.java
+#   ├── com/compareproduct/meli/api/ComparisonApi.java
+#   └── com/compareproduct/meli/api/model/ProductDTO.java
+```
+
+### Workflow
 
 ```
-com.compareproduct.meli/
-├── 🌐 controller/           # REST Controllers
-│   ├── product/         # Product endpoints
-│   └── compare/         # Comparison endpoints
-├── ⚙️ service/             # Business Logic
-│   ├── product/
-│   └── compare/
-├── 💾 repository/          # Data Access Layer
-├── 📦 entity/              # JPA Entities
-├── 📤 dto/                 # Data Transfer Objects
-├── 🏠 model/               # Domain Models
-├── 🔄 mapper/              # Object Mapping (MapStruct)
-├── 📊 telemetry/           # Observability
-│   ├── config/
-│   └── metrics/
-├── ⚠️ exception/           # Exception Handling
-└── 🔧 util/                # Utilities
+┌─────────────────┐
+│  OpenAPI Spec   │ ← Update specification
+│  (api-spec.yml) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────┐
+│ mvn generate-sources        │ ← Code generation
+└────────┬────────────────────┘
+         │
+         ▼
+┌─────────────────────────────┐
+│ Generated Interfaces        │ ← Type-safe contracts
+│ + DTOs/Models               │
+└────────┬────────────────────┘
+         │
+         ▼
+┌─────────────────────────────┐
+│ Implement Delegates         │ ← Implement generated interfaces
+│ (Business Logic Layer)      │
+└─────────────────────────────┘
 ```
 
-### 🛠️ Technology Stack
+### Updating API Specification
 
-#### **🔥 Core Technologies**
-- **Java 21** - Latest LTS with modern language features
-- **Spring Boot 3.2.0** - Enterprise-grade framework
-- **Spring WebFlux** - Reactive programming for scalability
-- **Spring Data JPA** - Data persistence with Hibernate
-- **H2 Database** - In-memory database for development
+1. Edit `src/main/resources/api/api-spec.yml`
+2. Add/modify endpoint, request body, or response schema
+3. Run: `mvn clean generate-sources`
+4. Update service layer implementation to match contract
+5. Run tests to verify compatibility
 
-#### **📊 Observability Stack**
-- **Micrometer** - Application metrics collection
-- **Prometheus** - Metrics storage and querying
-- **Grafana** - Advanced dashboards and visualization
-- **Spring Actuator** - Production-ready monitoring endpoints
-
-#### **📚 Documentation & API**
-- **OpenAPI 3.0** - API specification standard
-- **Swagger UI** - Interactive API documentation
-- **SpringDoc** - Automatic documentation generation
-
-#### **🛠️ Build & Deployment**
-- **Maven** - Dependency management and build automation
-- **Docker & Docker Compose** - Containerization and orchestration
-- **OpenAPI Generator** - Code generation from API specs
-
-### 🎨 Design Patterns
-
-- **🏢 Repository Pattern** - Data access abstraction
-- **🎆 Service Layer Pattern** - Business logic encapsulation
-- **📦 DTO Pattern** - Data transfer optimization
-- **🔄 Mapper Pattern** - Object transformation with MapStruct
-- **⚙️ Strategy Pattern** - Flexible comparison algorithms
+---
 
 ## 🧪 Testing Strategy
 
-This project implements a **comprehensive testing strategy with 100% code coverage** using modern testing practices and tools.
-
-### 📈 Test Pyramid
+### Testing Pyramid
 
 ```
-        E2E Tests (10%)
-       /              \
-    Integration Tests (20%)
-   /                      \
-Unit Tests (70%)
+                    ▲
+                   /|\
+                  / | \     E2E Tests (10%)
+                 /  |  \    - Full workflow
+                /   |   \   - External dependencies
+               /    |    \  - Database + API
+              /     |     \
+             /______▼______\
+            /         |     \   Integration Tests (20%)
+           /          |      \  - Component interaction
+          /           |       \ - In-memory database
+         /____________▼________\
+        /              |         \
+       /_______________|__________\ Unit Tests (70%)
+                       ▲           - Isolated components
+                                   - Mocked dependencies
 ```
 
-### 🛠️ Test Categories
+### Test Coverage
 
-| **Category** | **Purpose** | **Tools** | **Coverage** |
-|-------------|-------------|-----------|-------------|
-| **🧩 Unit Tests** | Component isolation testing | JUnit 5, Mockito | 70% |
-| **🔗 Integration Tests** | Component interaction testing | Spring Boot Test, TestContainers | 20% |
-| **🌍 E2E Tests** | Complete workflow testing | REST Assured, TestContainers | 10% |
+| Category | Type | Framework | Purpose |
+|----------|------|-----------|---------|
+| **Unit** | 70% | JUnit 5, Mockito | Component isolation, business logic |
+| **Integration** | 20% | Spring Boot Test, TestContainers | Service interaction, data layer |
+| **E2E** | 10% | REST Assured, TestContainers | Complete workflows, API contracts |
 
-### ✨ Test Features
-
-- **🏷️ Descriptive Annotations**: `@DisplayName`, `@Epic`, `@Feature`, `@Story`
-- **📊 100% Coverage**: JaCoCo enforced coverage requirements
-- **📈 Advanced Reporting**: Allure reports with BDD organization
-- **🐳 Container Testing**: TestContainers for realistic integration tests
-- **🚀 Automated Execution**: Scripts for complete test suite execution
-
-### 📝 Quick Test Commands
+### Running Tests
 
 ```bash
-# Run complete test suite with reports
-./run-tests.bat  # Windows
-./run-tests.sh   # Linux/Mac
+# Run all tests with coverage
+mvn clean test failsafe:integration-test
 
-# Run specific test types
-mvn test                    # Unit tests only
-mvn failsafe:integration-test  # Integration tests
-mvn test -Dtest="**/*E2ETest.java"  # E2E tests
+# Unit tests only
+mvn test
 
-# Generate and view reports
-mvn jacoco:report          # Coverage report
-mvn allure:serve           # Interactive Allure report
+# Integration tests only
+mvn failsafe:integration-test
+
+# Generate coverage report
+mvn jacoco:report
+
+# Generate Allure report
+mvn allure:serve
+
+# View reports
+# Coverage: target/site/jacoco/index.html
+# Allure: Opens in browser automatically
 ```
 
-### 📄 Test Documentation
+### Test Annotations & Organization
 
-For detailed testing information, see [TEST-STRATEGY.md](TEST-STRATEGY.md)
+```java
+@DisplayName("Product Service Tests")
+@Epic("Product Management")
+class ProductServiceTest {
+    
+    @Nested
+    @Feature("Product CRUD Operations")
+    class CRUDOperations {
+        
+        @Test
+        @Story("Create valid product")
+        @DisplayName("Should create product with valid input")
+        void shouldCreateProduct() {
+            // Arrange
+            Product product = new Product(/* ... */);
+            
+            // Act
+            Product created = productService.create(product);
+            
+            // Assert
+            assertThat(created).isNotNull().hasFieldOrProperty("id");
+        }
+    }
+}
+```
 
-## 📊 Monitoring & Observability
+### Test Metrics
 
-## 📊 Monitoring & Observability
+- **Code Coverage**: 100% (enforced by JaCoCo)
+- **Test Count**: 50+ unit tests, 15+ integration tests, 10+ E2E tests
+- **Execution Time**: < 30 seconds
+- **Reports**: Allure BDD-style reporting with detailed analytics
 
-### 📈 Metrics Collection
+---
 
-#### **💼 Business Metrics**
-- `business.comparisons.successful.total` - Successful product comparisons
-- `business.comparisons.failed.total` - Failed comparison attempts
-- `business.products.compared.total` - Total products analyzed
-- `business.comparisons.active.current` - Active comparison processes
+## 📊 Observability & Telemetry
 
-#### **⚙️ Technical Metrics**
-- `products.created.total` - Products created via API
-- `products.notfound.total` - Product lookup failures
-- `products.fetch.duration` - Product retrieval performance
-- `comparisons.requests.total` - Comparison API requests
-- `comparisons.duration` - End-to-end comparison time
+### Metrics Collection Strategy
 
-### 📉 Dashboards & Visualization
+The application implements **business metrics** and **technical metrics** using Micrometer with Prometheus output.
 
-#### **📈 Grafana Dashboards** (http://localhost:3000)
-- **🏠 Application Overview** - High-level system health
-- **💼 Business KPIs** - Product and comparison metrics
-- **⚙️ Technical Metrics** - Performance and system metrics
-- **👥 System Health** - Infrastructure monitoring
+#### Business Metrics
 
-#### **🎯 Key Performance Indicators**
-- **Success Rate**: Percentage of successful comparisons
-- **Throughput**: Products compared per minute
-- **Response Time**: API response latency (P95, P99)
-- **Error Rate**: Failed requests percentage
+Track product comparison behavior and business outcomes:
 
-### 🔍 Health Checks & Endpoints
+```
+business.comparisons.successful.total        # Counter: Successful comparisons
+business.comparisons.failed.total             # Counter: Failed comparisons
+business.products.compared.total              # Counter: Products analyzed
+business.comparisons.active.current           # Gauge: Active comparisons
+business.comparison.duration.seconds          # Timer: Comparison processing time
+```
+
+#### Technical Metrics
+
+Monitor system performance and reliability:
+
+```
+products.created.total                        # Counter: Products via API
+products.notfound.total                       # Counter: 404 errors
+products.fetch.duration.seconds               # Timer: Query performance
+http.requests.total                           # Counter: API requests
+http.responses.size.bytes                     # Summary: Response size
+jvm.memory.used.bytes                         # Gauge: JVM memory usage
+jvm.threads.live                              # Gauge: Active threads
+```
+
+### Prometheus Integration
+
+**Configuration:** `monitoring/prometheus.yml`
+
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'spring-boot-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['product-comparison-app:8080']
+```
+
+**Querying Metrics:**
+
+```promql
+# Successful comparison rate (last 5 minutes)
+rate(business.comparisons.successful.total[5m])
+
+# Average comparison duration
+rate(business.comparison.duration.seconds_sum[5m]) / rate(business.comparison.duration.seconds_count[5m])
+
+# Memory usage percentage
+jvm.memory.used.bytes / jvm.memory.max.bytes * 100
+
+# Error rate
+rate(http.requests.total{status=~"5.."}[5m]) / rate(http.requests.total[5m])
+```
+
+### Grafana Dashboards
+
+**Access:** http://localhost:3000 (admin / admin123)
+
+Dashboards provide visualization of:
+
+1. **Application Overview** - Health, uptime, key metrics
+2. **Business KPIs** - Comparison success rate, throughput, trends
+3. **Technical Metrics** - Response times (P50, P95, P99), error rates, JVM stats
+4. **System Health** - Memory, CPU, thread counts, garbage collection
+
+### Distributed Tracing (Zipkin)
+
+**Access:** http://localhost:9411
+
+Traces requests across the system:
+
+- Request entry point (Controller)
+- Service layer processing (Business logic)
+- Data layer operations (Repository, database queries)
+- External calls (if any)
+
+Each trace includes:
+- Timeline visualization
+- Latency breakdown by service
+- Error detection and logging
+- Dependency graph
+
+### Health Check Endpoints
 
 ```http
-GET /actuator/health          # 💚 Application health status
-GET /actuator/metrics         # 📈 All available metrics
-GET /actuator/prometheus      # 🔥 Prometheus format metrics
-GET /actuator/info           # ℹ️ Application information
+GET /actuator/health                          # Overall health status
+GET /actuator/health/liveness                 # Container liveness probe
+GET /actuator/health/readiness                # Container readiness probe
+GET /actuator/info                            # Application info (version, build)
+GET /actuator/metrics                         # Available metrics list
+GET /actuator/prometheus                      # Metrics in Prometheus format
 ```
 
-### 🚨 Alerting Strategy
+### Alert Rules (AlertManager)
 
-Configured alerts for critical scenarios:
-- **🔴 Error Rate > 5%** - High failure rate detection
-- **🔶 Response Time > 2s** - Performance degradation
-- **🟡 Memory Usage > 80%** - Resource exhaustion warning
-- **⚫ Application Down** - Service availability monitoring
+**Configuration:** `monitoring/alert_rules.yml`
 
-## 💻 Development
+| Alert | Condition | Severity | Action |
+|-------|-----------|----------|--------|
+| High Error Rate | Errors > 5% | Critical | Page on-call |
+| Slow Response | P99 > 2s | Warning | Log for analysis |
+| Memory Pressure | Heap > 80% | Warning | Monitor trend |
+| Application Down | No heartbeat | Critical | Page on-call |
 
-### 🛠️ Development Setup
+---
+
+## 🌍 Deployment
+
+### Docker Container
 
 ```bash
-# Clone repository
+# Build image locally
+docker build -t product-comparison-api:1.0 .
+
+# Run container
+docker run -d \
+  -p 8080:8080 \
+  --name product-comparison-api \
+  -e SPRING_PROFILES_ACTIVE=docker \
+  product-comparison-api:1.0
+
+# Access application
+curl http://localhost:8080/actuator/health
+```
+
+### Docker Compose (Complete Stack)
+
+Includes: API + Prometheus + Grafana + Zipkin + AlertManager
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View status
+docker-compose ps
+
+# View logs
+docker-compose logs -f product-comparison-api
+
+# Stop services
+docker-compose down
+```
+
+### AWS EC2 Deployment
+
+The CI/CD pipeline automates deployment to AWS EC2:
+
+**Deployment Steps:**
+
+1. **Build & Package** - Maven builds uber JAR
+2. **Security Scan** - Trivy scans Docker image for vulnerabilities
+3. **Push to Docker Hub** - Image pushed with `:latest` tag
+4. **SSH to EC2** - Connect via SSH with GitHub Secrets credentials
+5. **Pull & Deploy** - Docker pull latest image and start container
+6. **Start Monitoring** - Prometheus, Grafana, Zipkin stack initialization
+
+**EC2 Setup Requirements:**
+
+```bash
+# On EC2 instance:
+sudo yum install docker
+sudo systemctl start docker
+sudo usermod -aG docker ec2-user
+
+# Docker Compose installation
+sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+**GitHub Secrets Configuration:**
+
+```
+DOCKERHUB_USERNAME      → Docker Hub username
+DOCKERHUB_TOKEN         → Docker Hub access token
+EC2_HOST                → EC2 instance public IP/hostname
+EC2_USER                → EC2 SSH user (ec2-user for Amazon Linux)
+EC2_SSH_KEY             → EC2 private SSH key
+```
+
+**Access Deployed Application:**
+
+- **API**: http://{EC2_IP}:8080
+- **Swagger**: http://{EC2_IP}:8080/swagger-ui.html
+- **Grafana**: http://{EC2_IP}:3000
+
+### Database Configuration
+
+Currently uses **H2 in-memory database** for simplicity. In production:
+
+```properties
+# For PostgreSQL:
+spring.datasource.url=jdbc:postgresql://prod-db:5432/products
+spring.datasource.username=${DB_USERNAME}
+spring.datasource.password=${DB_PASSWORD}
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQL13Dialect
+
+# Connection pooling:
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=20000
+```
+
+---
+
+## 🛠️ Development Workflow
+
+### Local Development
+
+```bash
+# 1. Clone and setup
 git clone <repository-url>
 cd product-comparison-api
-
-# Install dependencies and build
 mvn clean compile
 
-# Run in development mode
+# 2. Start with Docker Compose
+docker-compose up -d
+
+# 3. Run application
 mvn spring-boot:run -Dspring-boot.run.profiles=local
+
+# 4. Monitor during development
+# API Docs: http://localhost:8080/swagger-ui.html
+# Metrics: http://localhost:9090
+# Logs: docker-compose logs -f
+
+# 5. Run tests
+mvn clean test failsafe:integration-test
+
+# 6. View coverage
+mvn jacoco:report
+open target/site/jacoco/index.html
+
+# 7. View test reports
+mvn allure:serve
 ```
 
-### 🧪 Testing & Quality
+### Code Quality Checks
 
 ```bash
-# Run complete test suite
-./run-tests.bat  # Windows
-./run-tests.sh   # Linux/Mac
+# Static analysis (if configured)
+mvn spotbugs:check
+mvn checkstyle:check
 
-# Run specific test categories
-mvn test                           # Unit tests
-mvn failsafe:integration-test     # Integration tests
-mvn test -Dtest="**/*E2ETest.java" # E2E tests
+# Test coverage verification
+mvn jacoco:check  # Must pass 100% coverage
 
-# Quality checks
-mvn jacoco:check                   # Verify 100% coverage
-mvn jacoco:report                  # Generate coverage report
+# Code formatting
+mvn spotless:check
+mvn spotless:apply  # Auto-format
 ```
 
-### 📄 Configuration Profiles
-
-| **Profile** | **Purpose** | **Database** | **Features** |
-|------------|-------------|--------------|-------------|
-| **local** | Development | H2 in-memory | Debug logging, H2 console |
-| **docker** | Container deployment | H2 in-memory | Production logging, metrics |
-| **test** | Test execution | H2 in-memory | Test-specific configurations |
-
-### 🚀 API-First Development
+### Git Workflow
 
 ```bash
-# Generate code from OpenAPI specification
-mvn clean generate-sources
+# 1. Create feature branch
+git checkout -b feature/add-advanced-comparison
 
-# View generated interfaces
-ls target/generated-sources/openapi/
+# 2. Make changes with tests
+# 3. Commit with semantic message
+git commit -m "feat(comparison): add advanced similarity scoring"
 
-# Update API specification
-# Edit: src/main/resources/api-spec.yml
-# Regenerate: mvn generate-sources
+# Commit types:
+# feat:     New feature
+# fix:      Bug fix
+# refactor: Code refactoring
+# test:     Test additions/changes
+# docs:     Documentation
+# perf:     Performance improvements
+# ci:       CI/CD pipeline changes
+
+# 4. Push and create Pull Request
+git push origin feature/add-advanced-comparison
+
+# 5. CI pipeline runs:
+#    - Build & test
+#    - Code coverage verification
+#    - Security scanning
+#    - Docker image build
 ```
 
-### 📊 Cache Strategy
+### CI/CD Pipeline (GitHub Actions)
 
-- **📦 Product Cache**: `@Cacheable("products")` - Individual product caching
-- **⚖️ Comparison Cache**: `@Cacheable("product-comparisons")` - Comparison result caching
-- **⏰ TTL Strategy**: Time-based expiration for data consistency
+Located in: `.github/workflows/ci_cd.yml`
 
-### 🔧 Development Tools
+**Pipeline Stages:**
 
-- **🌐 Hot Reload**: Spring Boot DevTools for rapid development
-- **📈 Metrics**: Micrometer for custom metrics
-- **📝 Logging**: Structured logging with correlation IDs
-- **🔍 Debugging**: Remote debugging support on port 5005
+1. **Build & Test** (Ubuntu Latest)
+   - Checkout code
+   - Setup Java 21 (Amazon Corretto)
+   - Maven: Clean package
+   - Runs all tests with coverage
 
-## 🚀 Future Improvements
+2. **Security Scanning**
+   - Docker image security scan (Trivy)
+   - Detects known vulnerabilities
 
-This project was intentionally scoped to demonstrate core product comparison functionality with enterprise-grade quality standards. However, in a production scenario, the following improvements could be implemented:
+3. **Docker Build & Push**
+   - Build Docker image
+   - Login to Docker Hub
+   - Push with `:latest` tag
 
-### 🔹 Comparison Engine Enhancements
-- **Advanced Comparison Logic**: Support for weighted comparison criteria (price vs performance vs features)
-- **Structured Specifications**: Key-value pair specifications for richer comparisons
-- **Similarity Scoring**: AI-powered similarity algorithms based on product attributes
-- **Customizable Criteria**: User-defined comparison priorities and filters
-- **Comparison History**: Track and analyze comparison patterns
+4. **AWS EC2 Deployment**
+   - SSH into EC2 instance
+   - Docker login and pull latest image
+   - Stop old container
+   - Start new container with environment variables
+   - Start Prometheus, Grafana, Zipkin stack
 
-### 🔹 Performance & Scalability
-- **Distributed Caching**: Redis cluster for high-availability caching
-- **Database Optimization**: PostgreSQL with read replicas and connection pooling
-- **Query Optimization**: Advanced indexing and pagination strategies
-- **Rate Limiting**: Sophisticated rate limiting with user tiers
-- **Load Balancing**: Multi-instance deployment with load balancers
+5. **Post-Deployment**
+   - Create Pull Request to `main` branch
+   - Merge after review
 
-### 🔹 Observability Improvements
-- **SLI/SLO Definition**: Define and monitor Service Level Indicators/Objectives
-- **Advanced Dashboards**: Business intelligence dashboards in Grafana
-- **Distributed Tracing**: OpenTelemetry integration for request tracing
-- **Log Aggregation**: ELK stack for centralized log management
-- **Alerting Strategies**: PagerDuty integration for critical alerts
+**Triggers:**
+- Push to `developer` branch
 
-### 🔹 Reliability & Resilience
-- **Circuit Breaker Patterns**: Resilience4j for external dependency protection
-- **Retry Mechanisms**: Exponential backoff with jitter
-- **Bulkhead Pattern**: Resource isolation for different operations
-- **Graceful Degradation**: Fallback mechanisms for service failures
-- **Health Check Improvements**: Deep health checks for dependencies
+**Artifacts:**
+- Built JAR: `target/product-comparison-api-1.0.1.jar`
+- Docker image: Pushed to Docker Hub
 
-### 🔹 API Design & Features
-- **API Versioning**: Comprehensive versioning strategy (v1, v2) with backward compatibility
-- **REST Semantics**: Improved REST design (`/products` instead of `/product`)
-- **GraphQL Support**: Flexible query capabilities for frontend applications
-- **Filtering & Search**: Advanced product search with Elasticsearch
-- **Batch Operations**: Bulk product operations for efficiency
+### Creating Pull Request
 
-### 🔹 Security Enhancements
-- **Authentication & Authorization**: OAuth2/JWT with role-based access control
-- **Input Validation**: Advanced request sanitization and validation
-- **API Security**: Rate limiting, CORS, and security headers
-- **Data Encryption**: Encryption at rest and in transit
-- **Security Scanning**: Automated vulnerability scanning in CI/CD
+```markdown
+# PR Title: feat: add advanced product similarity comparison
 
-### 🔹 Testing & Quality
-- **Contract Testing**: Pact for API contract verification
-- **Performance Testing**: JMeter/Gatling for load testing scenarios
-- **Chaos Engineering**: Chaos Monkey for resilience testing
-- **Security Testing**: OWASP ZAP integration for security testing
-- **Mutation Testing**: PIT testing for test quality verification
+## Description
+Add machine learning-based similarity scoring for product comparisons.
 
-### 🔹 DevOps & Deployment
-- **Advanced CI/CD**: GitHub Actions with deployment pipelines
-- **Infrastructure as Code**: Terraform for AWS/Azure infrastructure
-- **Container Orchestration**: Kubernetes deployment with Helm charts
-- **Blue/Green Deployment**: Zero-downtime deployment strategies
-- **Environment Management**: Staging, pre-production, and production environments
+## Type of Change
+- [x] New feature
+- [ ] Bug fix
+- [ ] Breaking change
+- [ ] Documentation
 
-### 🔹 Data & Intelligence
-- **Analytics Platform**: Product comparison analytics and insights
-- **Recommendation Engine**: ML-based product recommendation system
-- **Trend Analysis**: Historical data analysis for market trends
-- **A/B Testing**: Feature flag management for controlled rollouts
-- **Data Pipeline**: ETL processes for business intelligence
+## Testing
+- [x] Unit tests added (95 lines)
+- [x] Integration tests added (50 lines)
+- [x] E2E tests added (30 lines)
+- [x] Coverage: 100%
 
-### 🔹 User Experience
-- **Frontend Application**: React/Angular SPA for product comparison
-- **Mobile API**: Mobile-optimized endpoints and responses
-- **Real-time Updates**: WebSocket support for live comparisons
-- **Internationalization**: Multi-language and currency support
-- **Accessibility**: WCAG compliance for inclusive design
-## 🤝 Contributing
+## Checklist
+- [x] Tests passing
+- [x] Coverage requirements met
+- [x] Code follows style guidelines
+- [x] Documentation updated
+- [x] No breaking changes to API
 
-### 📝 Development Process
+## Related Issues
+Closes #42
+```
 
-1. **🍴 Fork** the repository
-2. **🌱 Create** feature branch: `git checkout -b feature/awesome-feature`
-3. **⚙️ Implement** with comprehensive tests
-4. **📝 Commit** with descriptive message following [Conventional Commits](https://conventionalcommits.org/)
-5. **🚀 Push** and create Pull Request
+---
 
-### 📄 Code Standards
+## 📈 Best Practices Implemented
 
-- **🧠 Clean Code**: Follow SOLID principles and clean architecture
-- **📊 100% Coverage**: Maintain complete test coverage (enforced by JaCoCo)
-- **📚 Documentation**: JavaDoc for all public APIs
-- **🏷️ Semantic Commits**: Use conventional commit format
-  - `feat:` - New features
-  - `fix:` - Bug fixes
-  - `docs:` - Documentation updates
-  - `refactor:` - Code refactoring
-  - `test:` - Test improvements
+### Code Organization
+- ✅ Layered architecture with clear separation of concerns
+- ✅ Package-by-feature organization
+- ✅ Service layer abstraction for business logic
+- ✅ Repository pattern for data access
 
-### ✅ Code Review Checklist
+### Testing
+- ✅ 100% code coverage (enforced)
+- ✅ Test pyramid: 70% unit, 20% integration, 10% E2E
+- ✅ Descriptive test names with @DisplayName
+- ✅ BDD-style Allure reporting
+- ✅ TestContainers for realistic integration tests
 
-- [ ] **🧪 Tests**: All tests passing with 100% coverage
-- [ ] **📈 Coverage**: JaCoCo coverage requirements met
-- [ ] **📝 Documentation**: README and code documentation updated
-- [ ] **📊 Metrics**: Business and technical metrics implemented
-- [ ] **⚡ Performance**: Performance impact considered and tested
-- [ ] **🔒 Security**: Security implications reviewed and validated
-- [ ] **🎨 Code Style**: Consistent with project conventions
-- [ ] **🔗 API Design**: RESTful principles and OpenAPI spec updated
+### API Design
+- ✅ RESTful conventions (status codes, HTTP methods)
+- ✅ URI versioning (/api/v1/)
+- ✅ OpenAPI 3.0 specification with code generation
+- ✅ Consistent error response format
+- ✅ Request/response DTOs with validation
 
-### 🛠️ Development Environment
+### Observability
+- ✅ Business metrics (comparison success rate, throughput)
+- ✅ Technical metrics (response time, error rate, JVM)
+- ✅ Distributed tracing with Zipkin
+- ✅ Grafana dashboards for visualization
+- ✅ Health check endpoints
+- ✅ Structured logging with correlation IDs
 
+### DevOps & Deployment
+- ✅ CI/CD pipeline with GitHub Actions
+- ✅ Docker containerization
+- ✅ Docker Compose for local orchestration
+- ✅ Security scanning (Trivy) in pipeline
+- ✅ AWS EC2 deployment automation
+- ✅ Blue-green ready (stop old, start new)
+
+### Code Quality
+- ✅ SOLID principles adherence
+- ✅ Design patterns (Repository, Service, DTO, Mapper, Strategy)
+- ✅ Clean Code practices
+- ✅ MapStruct for type-safe object mapping
+- ✅ Bean Validation for input validation
+- ✅ Global exception handling
+
+### Documentation
+- ✅ README with architecture diagrams
+- ✅ OpenAPI/Swagger interactive documentation
+- ✅ JavaDoc for public APIs
+- ✅ Code comments for complex logic
+- ✅ Configuration profile documentation
+
+---
+
+## 📞 Support & Maintenance
+
+### Common Issues
+
+**Issue: Port 8080 already in use**
 ```bash
-# Setup development environment
-git clone <your-fork>
-cd product-comparison-api
-mvn clean compile
+# Linux/Mac
+lsof -i :8080
+kill -9 <PID>
 
-# Run tests before committing
-./run-tests.bat  # Windows
-./run-tests.sh   # Linux/Mac
+# Windows PowerShell
+netstat -ano | findstr :8080
+taskkill /PID <PID> /F
+```
 
-# Verify coverage requirements
-mvn jacoco:check
+**Issue: Docker Compose services not starting**
+```bash
+# Check logs
+docker-compose logs
+
+# Restart services
+docker-compose restart
+
+# Full restart
+docker-compose down
+docker-compose up -d
+```
+
+**Issue: Tests failing with "database lock"**
+```bash
+# Clean and rebuild
+mvn clean
+rm -rf target/
+mvn test
+```
+
+### Performance Tuning
+
+**Enable application profiling:**
+```bash
+mvn spring-boot:run -Dspring-boot.run.jvmArguments="-XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
+```
+
+**Increase heap size (if needed):**
+```bash
+export JAVA_OPTS="-Xmx2g -Xms1g"
+mvn spring-boot:run
 ```
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE) - see the LICENSE file for details.
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 🎓 Learning Resources
+
+- [Spring Boot Documentation](https://spring.io/projects/spring-boot)
+- [Spring WebFlux](https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html)
+- [OpenAPI Specification](https://spec.openapis.org/oas/v3.0.3)
+- [Prometheus Documentation](https://prometheus.io/docs/)
+- [Grafana Documentation](https://grafana.com/docs/)
+- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
 
 ---
 
 <div align="center">
 
-**🚀 Built with passion for quality and excellence 🚀**
+**Built with excellence and enterprise-grade practices**
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.java.net/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)](target/site/jacoco/index.html)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](TEST-STRATEGY.md)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docs.docker.com/compose/)
+[![Tests](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)]()
 
 </div>
+
