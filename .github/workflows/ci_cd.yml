@@ -56,30 +56,39 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Autenticação no Docker Hub
+            # 1. Autenticação no Docker Hub
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            # Download da imagem atualizada
+            # 2. Download da imagem atualizada
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # MELHORIA: Mata QUALQUER container que esteja usando a porta 8080 (prevenção total)
-            CONTAINER_ID=$(docker ps -q --filter "publish=8080")
-            if [ ! -z "$CONTAINER_ID" ]; then
-              docker stop $CONTAINER_ID && docker rm $CONTAINER_ID
+            # 3. GESTÃO DO APP JAVA (Auto-limpeza por porta e nome)
+            # Remove qualquer container que esteja a ocupar a porta 8080
+            CONTAINER_PORT_8080=$(docker ps -q --filter "publish=8080")
+            if [ ! -z "$CONTAINER_PORT_8080" ]; then
+              docker stop $CONTAINER_PORT_8080 && docker rm $CONTAINER_PORT_8080
             fi
 
-            # Gestão específica pelo nome (Garante que o nome novo esteja livre)
+            # Garante que o nome 'product-comparison-app' está livre
             docker stop product-comparison-app || true
             docker rm product-comparison-app || true
             
-            # Execução com Injeção da variável para rodar o data.sql
+            # Executa o novo container com data.sql ativo
             docker run -d \
               --name product-comparison-app \
               -p 8080:8080 \
               -e SPRING_SQL_INIT_MODE=always \
               ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # Limpeza de imagens antigas (Prune)
+            # 4. GESTÃO DO GRAFANA
+            # Verifica se o Grafana já está a correr, se não, sobe ele
+            if [ ! "$(docker ps -q -f name=grafana)" ]; then
+                # Se existir um container parado com esse nome, remove para evitar conflito
+                docker rm -f grafana || true
+                docker run -d --name grafana -p 3000:3000 grafana/grafana
+            fi
+            
+            # 5. Limpeza de lixo (imagens antigas sem nome)
             docker image prune -f
 
   # FASE 3: AUTOMAÇÃO DE PULL REQUEST
@@ -105,9 +114,5 @@ jobs:
             ### 🤖 Relatório Automático de Pipeline
             - ✅ **Build & Testes:** Maven package concluído.
             - ✅ **Segurança:** Varredura Trivy aprovada.
-            - ✅ **Database:** Execução do data.sql habilitada (always).
-            - ✅ **Auto-Cleanup:** Containers antigos removidos da porta 8080.
-            - ✅ **AWS Deploy:** Container 'product-comparison-app' atualizado.
-          labels: |
-            automated-pr
-            ready-for-merge
+            - ✅ **Database:** Execução do data.sql habilitada.
+            - ✅ **Monitoramento:** Grafana
