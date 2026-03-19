@@ -100,9 +100,7 @@ jobs:
               --network-alias grafana \
               -p 3000:3000 \
               -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
-              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
-              -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
-              grafana/grafana
+              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" 
             
             # 7. Cleanup
             docker image prune -f
