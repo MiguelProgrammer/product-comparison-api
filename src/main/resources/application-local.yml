@@ -3,8 +3,13 @@ spring:
   datasource:
     url: jdbc:h2:mem:product
     driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+
   
   h2:
     console:
@@ -14,19 +19,21 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: update
-    show-sql: true
-    defer-datasource-initialization: true
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
+    defer-datasource-initialization: true # Mantido: Essencial para o data.sql rodar DEPOIS das tabelas
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
+        highlight_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
   
   sql:
     init:
       mode: ${SQL_INIT_MODE:always}
       platform: h2
       # ADICIONE ESTA LINHA ABAIXO:
-      scripts: classpath:database/data.sql
+      scripts: classpath:data.sql
       continue-on-error: true
   
   cache:
