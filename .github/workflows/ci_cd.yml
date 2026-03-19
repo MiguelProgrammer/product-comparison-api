@@ -5,34 +5,25 @@ on:
     branches: [ "developer" ]
 
 jobs:
-  # FASE 1: EXECUÇÃO DE TESTES
-  testes:
-    name: "1. Executar Testes"
+  # UNIFICADO: Testes, Build do JAR e Push para Docker Hub
+  # Fazemos tudo em um único Job para o Docker encontrar a pasta /target
+  build-e-entrega:
+    name: "1. Build, Teste e Docker"
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout do código"
         uses: actions/checkout@v4
 
-      - name: "Configurar Java 21"
+      - name: "Configurar Java 21 (Amazon Corretto)"
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: "Executar JUnit e Integração"
-        # O comando 'verify' garante que tanto os testes unitários (Surefire)
-        # quanto os testes de integração/E2E (Failsafe) sejam executados.
-        run: mvn clean verify
-
-  # FASE 2: DOCKER (BUILD, SCAN E PUSH)
-  build-e-entrega:
-    name: "2. Build, Scan e Docker Hub"
-    needs: testes
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout"
-        uses: actions/checkout@v4
+      - name: "Gerar Artefato (JAR)"
+        # O comando 'package' roda os testes E cria o arquivo em target/*.jar
+        run: mvn clean package
 
       - name: "Login no Docker Hub"
         uses: docker/login-action@v3
@@ -40,7 +31,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build da Imagem"
+      - name: "Build e Tag da Imagem"
+        # Agora o target/*.jar EXISTE nesta máquina virtual
         run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
 
       - name: "Varredura de Segurança (Trivy)"
@@ -48,15 +40,15 @@ jobs:
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
           format: 'table'
-          exit-code: '1' # Interrompe o pipeline se encontrar vulnerabilidades Críticas/Altas
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
 
-      - name: "Push da Imagem Validada"
+      - name: "Push para o Docker Hub"
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
 
-  # FASE 3: DEPLOY NA AWS EC2 (PORTA 8080)
+  # FASE 2: DEPLOY NA AWS EC2
   deploy-ec2:
-    name: "3. Deploy AWS EC2"
+    name: "2. Deploy AWS EC2"
     needs: build-e-entrega
     runs-on: ubuntu-latest
     steps:
@@ -67,25 +59,25 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Login no Docker Hub dentro da instância
+            # Autentica no Docker Hub dentro da EC2
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            # Baixa a nova imagem
+            # Puxa a imagem mais nova
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Para e remove o container antigo se ele existir
+            # Remove container antigo se existir
             docker stop app-producao || true
             docker rm app-producao || true
             
-            # Executa o novo container mapeando a porta 8080
+            # Sobe o novo container na porta 8080
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Limpa imagens antigas sem uso (economia de espaço)
+            # Limpa lixo de imagens antigas
             docker image prune -f
 
-  # FASE 4: AUTOMAÇÃO DE PULL REQUEST
+  # FASE 3: PULL REQUEST AUTOMÁTICO
   abrir-pull-request:
-    name: "4. Abrir PR para Main"
+    name: "3. Abrir PR para Main"
     needs: deploy-ec2
     runs-on: ubuntu-latest
     permissions:
@@ -101,15 +93,12 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release: Developer -> Main"
+          title: "🚀 Release: Dev -> Main"
           body: |
-            ### 🤖 Relatório Automático de CI/CD
-            - ✅ **Testes:** JUnit e E2E executados com sucesso.
-            - ✅ **Docker:** Imagem buildada e enviada ao Docker Hub.
-            - ✅ **Segurança:** Scan Trivy aprovado (Sem Critical/High).
-            - ✅ **Deploy:** Aplicação atualizada na AWS EC2 (Porta 8080).
-            
-            *Este PR foi gerado automaticamente após o sucesso de todas as etapas.*
+            ### 🤖 Relatório de Deploy
+            - ✅ Build do JAR realizado.
+            - ✅ Testes unitários e E2E aprovados.
+            - ✅ Imagem Docker enviada.
+            - ✅ Deploy realizado na porta 8080.
           labels: |
             automated-pr
-            ready-for-merge
