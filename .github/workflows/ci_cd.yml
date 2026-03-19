@@ -62,8 +62,11 @@ jobs:
             scrape_configs:
               - job_name: 'spring-boot-app'
                 metrics_path: '/actuator/prometheus'
+                scheme: https
+                tls_config:
+                  insecure_skip_verify: true
                 static_configs:
-                  - targets: ['product-comparison-app:8080']
+                  - targets: ['miguelprogrammer-challenge.duckdns.org']
             EOF
 
             # 4. SOBE O APP JAVA
@@ -105,7 +108,6 @@ jobs:
               -e "GF_SECURITY_ADMIN_USER=admin" \
               -e "GF_USERS_ALLOW_SIGN_UP=false" \
               -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-              -e "GF_SERVER_ROOT_URL=/grafana/" \
               -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
               -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
               grafana/grafana:latest
