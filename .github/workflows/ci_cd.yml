@@ -109,12 +109,7 @@ jobs:
               -e "GF_USERS_ALLOW_SIGN_UP=false" \
               -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
               -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
-              -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
               -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
-              -e "GF_SECURITY_COOKIE_SAMESITE=lax" \
-              -e "GF_SECURITY_COOKIE_SECURE=true" \
-              -e "GF_SECURITY_ALLOW_EMBED_FRAMES=true" \
-              -e "GF_SERVER_PROTOCOL=http" \
               grafana/grafana:latest
   
             # 7. Cleanup
