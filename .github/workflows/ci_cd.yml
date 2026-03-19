@@ -138,36 +138,36 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: docker image prune -f
 
-    # FASE 3: TESTE DE CARGA (JMeter)
-    performance-test:
-      name: "3. Teste de Performance (JMeter)"
-      needs: deploy-ec2
-      runs-on: ubuntu-latest
-      steps:
-        - name: "Checkout do código"
-          uses: actions/checkout@v4
+  # FASE 3: TESTE DE CARGA (JMeter)
+  performance-test:
+    name: "3. Teste de Performance (JMeter)"
+    needs: deploy-ec2
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout do código"
+        uses: actions/checkout@v4
 
-        - name: "Instalar JMeter"
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y jmeter
+      - name: "Instalar JMeter"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jmeter
 
-        - name: "Executar Teste de Carga"
-          run: |
-            # Criamos um plano de teste simples via CLI para testar o endpoint de produtos
-            # Substitua o PATH pelo seu endpoint real (ex: /api/products)
-            jmeter -n -t ./tests/performance/load_test.jmx \
-              -l results.jtl \
-              -Jserver=miguelprogrammer-challenge.duckdns.org \
-              -Jport=443 \
-              -Jprotocol=https
+      - name: "Executar Teste de Carga"
+        run: |
+          # Criamos um plano de teste simples via CLI para testar o endpoint de produtos
+          # Substitua o PATH pelo seu endpoint real (ex: /api/products)
+          jmeter -n -t ./tests/performance/load_test.jmx \
+            -l results.jtl \
+            -Jserver=miguelprogrammer-challenge.duckdns.org \
+            -Jport=443 \
+            -Jprotocol=https
 
-        - name: "Verificar Resultados (SLA)"
-          run: |
-            # Um script simples para falhar o build se houver muitos erros (ex: > 1%)
-            ERRORS=$(grep -o '<error>true</error>' results.jtl | wc -l || echo 0)
-            if [ "$ERRORS" -gt "0" ]; then
-              echo "❌ Teste de carga falhou: $ERRORS erros detectados."
-              exit 1
-            fi
-            echo "✅ Teste de carga passou com sucesso!"
+      - name: "Verificar Resultados (SLA)"
+        run: |
+          # Um script simples para falhar o build se houver muitos erros (ex: > 1%)
+          ERRORS=$(grep -o '<error>true</error>' results.jtl | wc -l || echo 0)
+          if [ "$ERRORS" -gt "0" ]; then
+            echo "❌ Teste de carga falhou: $ERRORS erros detectados."
+            exit 1
+          fi
+          echo "✅ Teste de carga passou com sucesso!"
