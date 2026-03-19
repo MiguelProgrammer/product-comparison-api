@@ -138,43 +138,25 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: docker image prune -f
 
-  # FASE 3: TESTE DE CARGA (JMeter)
-  performance-test:
-    name: "3. Teste de Performance (JMeter)"
-    needs: deploy-ec2
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout do código"
-        uses: actions/checkout@v4
+    # FASE 3: GERAR TRÁFEGO (25 REQUISIÇÕES POR SEGUNDO)
+    gerar-trafego:
+      name: "3. Alimentar Grafana (25 RPS)"
+      needs: deploy-ec2
+      runs-on: ubuntu-latest
+      steps:
+        - name: "Aguardar Serviços (30s)"
+          run: sleep 30
 
-      # AGUARDAR O GRAFANA/PROMETHEUS ESTAREM PRONTOS
-      - name: "Aguardar inicialização dos serviços (30s)"
-        run: sleep 30
+        - name: "Instalar Hey"
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y wget
+            wget https://hey-release.s3.us-east-2.amazonaws.com/hey_linux_amd64
+            chmod +x hey_linux_amd64
+            sudo mv hey_linux_amd64 /usr/local/bin/hey
 
-      - name: "Instalar JMeter"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jmeter
-
-      - name: "Executar Teste de Carga"
-        run: |
-          # 1. Garante que a pasta existe (caso você queira gerar o JMX no voo)
-          mkdir -p tests/performance
-          
-          # 2. Se o arquivo JMX não existir, o JMeter vai falhar. 
-          # Verifique se você fez o commit do load_test.jmx no seu repositório!
-          
-          jmeter -n -t ./tests/performance/load_test.jmx \
-          -l results.jtl \
-          -Jserver=miguelprogrammer-challenge.duckdns.org \
-          -Jport=443 \
-          -Jprotocol=https
-
-          - name: "Verificar Logs do JMeter (Debug)"
-            if: always() # Roda mesmo que o JMeter falhe, para ajudar no debug
-            run: |
-              if [ -f results.jtl ]; then
-                tail -n 20 results.jtl
-              else
-                echo "❌ O arquivo results.jtl não foi encontrado. O JMeter provavelmente não iniciou corretamente."
-              fi
+        - name: "Gerar Carga Constante (2 minutos)"
+          run: |
+            # -q 25: Limita a 25 requisições por segundo
+            # -z 2m: Roda por 2 minutos (tempo suficiente para o Grafana atualizar)
+            hey -q 25 -z 2m https://miguelprogrammer-challenge.duckdns.org/api/products
