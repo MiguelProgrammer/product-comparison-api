@@ -30,7 +30,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: "Build da Imagem Docker"
-        # Alterado de app-java-21 para product-comparison-app
         run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest .
 
       - name: "Varredura de Segurança (Trivy)"
@@ -63,12 +62,16 @@ jobs:
             # Download da imagem atualizada
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # Gestão do container (Para e remove o anterior com o NOVO nome)
+            # Gestão do container
             docker stop product-comparison-app || true
             docker rm product-comparison-app || true
             
-            # Execução com o NOVO nome de container e imagem
-            docker run -d --name product-comparison-app -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
+            # Execução com Injeção da variável para rodar o data.sql
+            docker run -d \
+              --name product-comparison-app \
+              -p 8080:8080 \
+              -e SPRING_SQL_INIT_MODE=always \
+              ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
             # Limpeza
             docker image prune -f
@@ -96,7 +99,7 @@ jobs:
             ### 🤖 Relatório Automático de Pipeline
             - ✅ **Build & Testes:** Maven package concluído.
             - ✅ **Segurança:** Varredura Trivy aprovada.
-            - ✅ **Docker Hub:** Imagem 'product-comparison-app' enviada.
+            - ✅ **Database:** Execução do data.sql habilitada (always).
             - ✅ **AWS Deploy:** Container 'product-comparison-app' atualizado na porta 8080.
           labels: |
             automated-pr
