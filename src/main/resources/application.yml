@@ -3,7 +3,7 @@ spring:
     name: product-comparison-api
 
   datasource:
-    url: ${DATABASE_URL:jdbc:h2:mem:product}
+    url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE} # MELHORIA: Mantém o banco vivo enquanto o app rodar
     driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
     username: ${DATABASE_USERNAME:sa}
     password: ${DATABASE_PASSWORD:}
@@ -18,34 +18,33 @@ spring:
 
   h2:
     console:
-      enabled: ${H2_CONSOLE_ENABLED:true} # Ativado para facilitar seu debug na EC2
+      enabled: ${H2_CONSOLE_ENABLED:true}
       path: /h2-console
       settings:
-        web-allow-others: true # Necessário para acessar o console via IP/DNS externo
+        web-allow-others: true
 
   jpa:
-    database-platform: ${HIBERNATE_DIALECT:org.hibernate.dialect.H2Dialect}
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: ${DDL_AUTO:update}
     show-sql: ${SHOW_SQL:false}
-    # MELHORIA: Força o Hibernate a preparar o esquema antes do data.sql rodar
-    defer-datasource-initialization: true
+    defer-datasource-initialization: true # Mantido: Essencial para o data.sql rodar DEPOIS das tabelas
     properties:
       hibernate:
         format_sql: false
-        # Garante que o H2 entenda comandos modernos de SQL
+        highlight_sql: true
         dialect: org.hibernate.dialect.H2Dialect
 
   sql:
     init:
-      # MELHORIA: Garante execução em qualquer banco (não só em memória)
       mode: ${SQL_INIT_MODE:always}
-      platform: h2
-      continue-on-error: true # Se o dado já existir, ele não trava a subida do app
+      platform: h2 # MELHORIA: Indica explicitamente a plataforma para o data.sql
+      continue-on-error: true
 
-  # MELHORIA: Faz o Spring entender os cabeçalhos do Nginx (HTTPS/Forwarded)
-  server:
-    forward-headers-strategy: native
+  # MELHORIA: Movido para dentro do bloco spring para sintaxe correta
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration # Opcional: só se o H2 console pedir login e você não tiver security configurado
 
   messages:
     encoding: UTF-8
@@ -66,8 +65,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: native # Mantido: Crucial para HTTPS no Nginx
   shutdown: graceful
-  # Configuração extra para evitar erros de frame no console do H2
   servlet:
     session:
       cookie:
@@ -92,24 +91,22 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: ${SWAGGER_ENABLED:true}
-    # MELHORIA: Tenta detectar o protocolo (http/https) automaticamente
     display-query-params-request: true
 
 management:
   endpoints:
     web:
       exposure:
-        include: ${ACTUATOR_ENDPOINTS:info,health,metrics,prometheus,circuitbreakers,ratelimiters}
+        include: "*" # MELHORIA: Facilita o monitoramento completo (pode restringir depois)
       base-path: /actuator
       cors:
-        # MELHORIA: Adicionado seu domínio nas origens permitidas
-        allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:8080,https://miguelprogrammer-challenge.duckdns.org}
+        allowed-origins: "*" # MELHORIA: Para evitar o erro de 'Failed to fetch' no dashboard do Grafana/Prometheus
         allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   endpoint:
     health:
       show-details: always
-    metrics:
-      enabled: true
+      probes:
+        enabled: true # MELHORIA: Útil para o Kubernetes ou scripts de check na EC2
     prometheus:
       enabled: true
   metrics:
@@ -117,10 +114,9 @@ management:
       prometheus:
         enabled: true
     tags:
-      application: product-comparison-api
+      application: ${spring.application.name}
       environment: ${ENVIRONMENT:production}
 
-# Resilience4j Configuration (Mantida conforme seu original)
 resilience4j:
   circuitbreaker:
     instances:
@@ -128,8 +124,10 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
+        register-health-indicator: true # MELHORIA: Expõe o status no /actuator/health
   ratelimiter:
     instances:
       comparison-api:
         limit-for-period: 100
         limit-refresh-period: 1m
+        register-health-indicator: true
