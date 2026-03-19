@@ -2,7 +2,7 @@ name: Pipeline CI/CD
 
 on:
   push:
-    branches: [ "developer" ]
+    branches: [ "main" ]
 
 # Resolve o aviso de "Node.js 20 actions are deprecated"
 env:
