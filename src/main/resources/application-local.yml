@@ -23,8 +23,11 @@ spring:
   
   sql:
     init:
-      mode: always
-      plataform: h2
+      mode: ${SQL_INIT_MODE:always}
+      platform: h2
+      # ADICIONE ESTA LINHA ABAIXO:
+      scripts: classpath:database/data.sql
+      continue-on-error: true
   
   cache:
     type: simple
