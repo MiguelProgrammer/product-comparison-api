@@ -67,7 +67,7 @@ jobs:
             mkdir -p ~/prometheus
             cat <<EOF > ~/prometheus/prometheus.yml
             global:
-              scrape_interval: 15s
+              scrape_interval: 3s
             scrape_configs:
               - job_name: 'spring-boot-app'
                 metrics_path: '/actuator/prometheus'
@@ -158,11 +158,23 @@ jobs:
 
       - name: "Executar Teste de Carga"
         run: |
+          # 1. Garante que a pasta existe (caso você queira gerar o JMX no voo)
+          mkdir -p tests/performance
+          
+          # 2. Se o arquivo JMX não existir, o JMeter vai falhar. 
+          # Verifique se você fez o commit do load_test.jmx no seu repositório!
+          
           jmeter -n -t ./tests/performance/load_test.jmx \
-            -l results.jtl \
-            -Jserver=miguelprogrammer-challenge.duckdns.org \
-            -Jport=443 \
-            -Jprotocol=https
+          -l results.jtl \
+          -Jserver=miguelprogrammer-challenge.duckdns.org \
+          -Jport=443 \
+          -Jprotocol=https
 
-      - name: "Verificar Logs do JMeter (Debug)"
-        run: tail -n 20 results.jtl
+          - name: "Verificar Logs do JMeter (Debug)"
+            if: always() # Roda mesmo que o JMeter falhe, para ajudar no debug
+            run: |
+              if [ -f results.jtl ]; then
+                tail -n 20 results.jtl
+              else
+                echo "❌ O arquivo results.jtl não foi encontrado. O JMeter provavelmente não iniciou corretamente."
+              fi
