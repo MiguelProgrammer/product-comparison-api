@@ -1,4 +1,4 @@
-name: Pipeline CI/CD Java 21 (Monitoramento Corrigido)
+name: Pipeline CI/CD
 
 on:
   push:
@@ -125,4 +125,3 @@ jobs:
           branch: developer
           base: main
           title: "🚀 Release: Monitoramento Ativo com Sub-path"
-          body: "Configuração final do Grafana e Prometheus via sub-path /grafana/ corrigida."
