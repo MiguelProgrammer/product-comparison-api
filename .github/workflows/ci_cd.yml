@@ -21,8 +21,6 @@ jobs:
           cache: 'maven'
 
       - name: "Gerar Artefato (JAR)"
-        # O 'package' executa os testes unitários (Surefire) e de integração (Failsafe)
-        # Se algum teste falhar, o pipeline para aqui.
         run: mvn clean package
 
       - name: "Login no Docker Hub"
@@ -32,19 +30,19 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: "Build da Imagem Docker"
-        # Certifica-te que o teu Dockerfile tem o 'RUN apk upgrade' para passar no Trivy
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
+        # Alterado de app-java-21 para product-comparison-app
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest .
 
       - name: "Varredura de Segurança (Trivy)"
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest'
           format: 'table'
-          exit-code: '0' # Bloqueia o deploy se houver vulnerabilidades CRITICAL ou HIGH
+          exit-code: '0'
           severity: 'CRITICAL'
 
       - name: "Push para o Docker Hub"
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
   # FASE 2: DEPLOY NA AWS EC2 (Via SSH)
   deploy-ec2:
@@ -59,20 +57,20 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Autenticação no Docker Hub na instância
+            # Autenticação no Docker Hub
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
             # Download da imagem atualizada
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # Gestão do container (Para e remove o anterior)
-            docker stop app-producao || true
-            docker rm app-producao || true
+            # Gestão do container (Para e remove o anterior com o NOVO nome)
+            docker stop product-comparison-app || true
+            docker rm product-comparison-app || true
             
-            # Execução na porta 8080 (Configurada no Security Group da AWS)
-            docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            # Execução com o NOVO nome de container e imagem
+            docker run -d --name product-comparison-app -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # Limpeza de imagens órfãs para poupar disco
+            # Limpeza
             docker image prune -f
 
   # FASE 3: AUTOMAÇÃO DE PULL REQUEST
@@ -96,10 +94,10 @@ jobs:
           title: "🚀 Release: Developer -> Main"
           body: |
             ### 🤖 Relatório Automático de Pipeline
-            - ✅ **Build & Testes:** Maven package concluído (Unitários + E2E).
-            - ✅ **Segurança:** Varredura Trivy aprovada (Patches aplicados).
-            - ✅ **Docker Hub:** Imagem enviada com sucesso.
-            - ✅ **AWS Deploy:** Container atualizado na porta 8080.
+            - ✅ **Build & Testes:** Maven package concluído.
+            - ✅ **Segurança:** Varredura Trivy aprovada.
+            - ✅ **Docker Hub:** Imagem 'product-comparison-app' enviada.
+            - ✅ **AWS Deploy:** Container 'product-comparison-app' atualizado na porta 8080.
           labels: |
             automated-pr
             ready-for-merge
