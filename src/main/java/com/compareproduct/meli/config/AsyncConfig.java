@@ -11,6 +11,11 @@ import java.util.concurrent.Executor;
 @EnableAsync
 public class AsyncConfig {
 
+    /**
+     *  pool de threads personalida
+     * @return
+     */
+
     @Bean(name = "comparisonExecutor")
     public Executor comparisonExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

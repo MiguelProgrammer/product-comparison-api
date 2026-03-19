@@ -129,14 +129,18 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Flux<Product> getByIds(List<Long> ids) {
+
         log.debug("PRODUCT_GET_BY_IDS_STARTED ids={}", ids);
+
         try {
             List<ProductEntity> entities = productRepository.findAllById(ids);
             List<Product> products = entities.stream()
                     .map(productMapper::toProduct)
                     .toList();
+
             log.info("PRODUCT_GET_BY_IDS_SUCCESS requestedCount={} foundCount={}", ids.size(), products.size());
             return Flux.fromIterable(products);
+
         } catch (Exception e) {
             log.error("PRODUCT_GET_BY_IDS_ERROR ids={} error={}", ids, e.getMessage(), e);
             return Flux.error(e);
