@@ -39,38 +39,33 @@ public class CompareServiceImpl implements CompareService {
     @Cacheable(value = "product-comparisons", key = "#productIds.hashCode()")
     public Mono<CompareResponse> compareProducts(List<Long> productIds) {
 
+        /**
+         *  metrics
+         */
         if (productIds == null || productIds.isEmpty()) {
             log.error("COMPARISON_ERROR reason=empty_product_list productIds={}", productIds);
             businessMetrics.recordFailedComparison();
             return Mono.error(new IllegalArgumentException(
                 MessageUtil.getMessage("messages.compare.productIds.empty")));
         }
-        
+
         log.info("COMPARISON_STARTED productCount={} productIds={}", productIds.size(), productIds);
         comparisonMetrics.recordComparisonRequest();
         businessMetrics.recordActiveComparisons(1);
-        
+
         long startTime = System.currentTimeMillis();
-        
+
         return productService.getByIds(productIds)
                 .collectList()
                 .map(this::buildResponse)
                 .doOnSuccess(result -> {
-                    long duration = System.currentTimeMillis() - startTime;
-                    log.info("COMPARISON_SUCCESS productCount={} duration={}ms productsFound={}", 
-                            productIds.size(), duration, result.products().size());
-                    businessMetrics.recordSuccessfulComparison(result.products().size());
-                    businessMetrics.recordActiveComparisons(-1);
-                    comparisonMetrics.recordComparisonDuration(duration);
+                    successMetrics(productIds, result, startTime);
                 })
                 .doOnError(error -> {
-                    long duration = System.currentTimeMillis() - startTime;
-                    log.error("COMPARISON_ERROR productCount={} duration={}ms error={}", 
-                            productIds.size(), duration, error.getMessage(), error);
-                    businessMetrics.recordFailedComparison();
-                    businessMetrics.recordActiveComparisons(-1);
+                    errorMetrics(productIds, error, startTime);
                 });
     }
+
 
     private CompareResponse buildResponse(List<Product> products) {
         Map<String, List<Object>> comparison = new HashMap<>();
@@ -82,5 +77,35 @@ public class CompareServiceImpl implements CompareService {
             products.stream().map(productMapper::toProductSummary).toList(),
             comparison
         );
+    }
+
+    /**
+     * success metrics
+     * @param productIds
+     * @param result
+     * @param startTime
+     */
+    private void successMetrics(List<Long> productIds, CompareResponse result, long startTime) {
+        long duration = System.currentTimeMillis() - startTime;
+
+        log.info("COMPARISON_SUCCESS productCount={} duration={}ms productsFound={}",
+                productIds.size(), duration, result.products().size());
+        businessMetrics.recordSuccessfulComparison(result.products().size());
+        businessMetrics.recordActiveComparisons(-1);
+        comparisonMetrics.recordComparisonDuration(duration);
+    }
+
+    /**
+     * error metrics
+     * @param productIds
+     * @param error
+     * @param startTime
+     */
+    private void errorMetrics(List<Long> productIds, Throwable error, long startTime) {
+        long duration = System.currentTimeMillis() - startTime;
+        log.error("COMPARISON_ERROR productCount={} duration={}ms error={}",
+                productIds.size(), duration, error.getMessage(), error);
+        businessMetrics.recordFailedComparison();
+        businessMetrics.recordActiveComparisons(-1);
     }
 }

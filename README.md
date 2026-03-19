@@ -68,6 +68,17 @@ This project prioritizes **production-grade reliability** over feature quantity.
 
 ---
 
+
+## 🏗️ System Architecture & CI/CD Flow
+
+![System Architecture](https://i.imgur.com/z77ZwUv.png)
+
+This diagram represents the complete lifecycle of the application:
+* **CI/CD Pipeline**: Automated workflow using **GitHub Actions** for building (Maven), security scanning (**Trivy**), and pushing images to **Docker Hub**.
+* **Cloud Infrastructure**: Hosted on **AWS EC2**, utilizing **Nginx** as a Reverse Proxy with SSL termination for enhanced security.
+* **Containerization**: The entire stack (API, Database, Cache, and Observability) is orchestrated via **Docker Compose**.
+* **Observability**: Real-time monitoring with **Prometheus** (metrics scraping) and **Grafana** (dashboards).
+
 ## Architecture
 
 ### Layered Pattern
@@ -126,9 +137,9 @@ docker-compose up -d
 **Access Points:**
 - API: https://miguelprogrammer-challenge.duckdns.org
 - Swagger UI: https://miguelprogrammer-challenge.duckdns.org/swagger-ui/index.html
-- Prometheus: https://miguelprogrammer-challenge.duckdns.org:9090
-- Grafana: https://miguelprogrammer-challenge.duckdns.org:3000
-- Zipkin Traces: https://miguelprogrammer-challenge.duckdns.org:9411
+- Prometheus: http://miguelprogrammer-challenge.duckdns.org:9090/targets
+- Grafana: https://miguelprogrammer-challenge.duckdns.org/grafana
+- Zipkin Traces: https://miguelprogrammer-challenge.duckdns.org:9411 - off
 
 ### Local Development
 
@@ -266,7 +277,7 @@ histogram_quantile(0.95, rate(http.requests.duration_seconds_bucket[5m]))
 
 ### Grafana Dashboards
 
-Access: https://miguelprogrammer-challenge.duckdns.org:3000
+Access: https://miguelprogrammer-challenge.duckdns.org/grafana
 
 **Dashboards provided:**
 - Application Overview - Health status, uptime
@@ -276,7 +287,7 @@ Access: https://miguelprogrammer-challenge.duckdns.org:3000
 
 ### Distributed Tracing
 
-**Zipkin**: https://miguelprogrammer-challenge.duckdns.org:9411
+**Zipkin**: https://miguelprogrammer-challenge.duckdns.org:9411 - off
 
 Each request is traced across:
 - Controller → Service → Repository → Database
@@ -363,6 +374,14 @@ class ProductServiceTest {
 **Reports**: Run `mvn allure:serve` for interactive BDD report
 
 ---
+## 🚀 Performance & Continuous Reliability
+
+To ensure the system meets production demands, we implemented a **Continuous Performance Testing** strategy integrated into the CI/CD pipeline:
+
+* **Automated Load Testing**: Every deployment to the `developer` branch triggers a **JMeter** execution. We simulate a constant load of **3 concurrent virtual users per second** (equivalent to 180 RPM) targeting the complex `/api/v1/compare/products` POST endpoint.
+* **High-Resolution Monitoring**: During the 30-second stress test, **Prometheus** is configured with a **2s scrape interval**. This allows us to visualize real-time performance spikes in **Grafana** with high precision, monitoring JVM heap pressure and HikariCP connection pool saturation.
+* **Visual Evidence with Allure**: Test results are automatically exported to an **Allure Server**. This provides a historical record of performance regressions, showing response time percentiles (P95, P99) and assertion success rates for every build.
+---
 
 ## CI/CD & Deployment
 
@@ -440,7 +459,7 @@ EC2_SSH_KEY             → EC2 private SSH key
 **Access Deployed App:**
 - API: https://miguelprogrammer-challenge.duckdns.org
 - Swagger: https://miguelprogrammer-challenge.duckdns.org/swagger-ui/index.html
-- Grafana: https://miguelprogrammer-challenge.duckdns.org:3000
+- Grafana: https://miguelprogrammer-challenge.duckdns.org/grafana
 
 ---
 
