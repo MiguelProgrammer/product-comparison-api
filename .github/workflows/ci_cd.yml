@@ -1,4 +1,4 @@
-name: Pipeline CI/CD
+name: Pipeline CI/CD Java 21 (Monitoramento Corrigido)
 
 on:
   push:
@@ -54,7 +54,7 @@ jobs:
             # 2. Garantir a existência da rede isolada
             docker network create monitoring-network || true
 
-            # 3. Configuração do Prometheus (Comunicação INTERNA via Docker)
+            # 3. Configuração do Prometheus
             mkdir -p ~/prometheus
             cat <<EOF > ~/prometheus/prometheus.yml
             global:
@@ -66,7 +66,7 @@ jobs:
                   - targets: ['product-comparison-app:8080']
             EOF
 
-            # 4. SOBE O APP JAVA (Com alias de rede)
+            # 4. SOBE O APP JAVA
             docker stop product-comparison-app || true
             docker rm product-comparison-app || true
             docker run -d \
@@ -90,7 +90,7 @@ jobs:
               -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
               prom/prometheus
 
-            # 6. SOBE O GRAFANA (Configurado para Sub-path /grafana/)
+            # 6. SOBE O GRAFANA (Sub-path /grafana/)
             docker stop grafana || true
             docker rm grafana || true
             docker run -d \
@@ -117,11 +117,12 @@ jobs:
       contents: write
     steps:
       - name: "Checkout"
-        uses: checkout@v4
+        uses: actions/checkout@v4
       - name: "Criar Pull Request"
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release: Monitoramento Ativo com Sub-path"
+          title: "🚀 Release: Monitoramento Corrigido"
+          body: "Ajuste de variáveis do Grafana e Prometheus via sub-path."
