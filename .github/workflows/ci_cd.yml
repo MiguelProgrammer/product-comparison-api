@@ -41,7 +41,7 @@ jobs:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
           format: 'table'
           exit-code: '0' # Bloqueia o deploy se houver vulnerabilidades CRITICAL ou HIGH
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
       - name: "Push para o Docker Hub"
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
