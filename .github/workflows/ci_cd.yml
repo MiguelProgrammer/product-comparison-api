@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "developer" ]
 
+# Resolve o aviso de "Node.js 20 actions are deprecated"
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # FASE 1: BUILD, TESTES E DOCKER
   build-e-entrega:
@@ -51,10 +55,10 @@ jobs:
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # 2. Garantir a existência da rede isolada
+            # 2. Garantir a rede
             docker network create monitoring-network || true
 
-            # 3. Configuração do Prometheus
+            # 3. Configuração do Prometheus (CORRIGIDA PARA HTTP)
             mkdir -p ~/prometheus
             cat <<EOF > ~/prometheus/prometheus.yml
             global:
@@ -62,33 +66,26 @@ jobs:
             scrape_configs:
               - job_name: 'spring-boot-app'
                 metrics_path: '/actuator/prometheus'
-                scheme: https
-                tls_config:
-                  insecure_skip_verify: true
                 static_configs:
                   - targets: ['product-comparison-app:8080']
             EOF
 
-            # 4. SOBE O APP JAVA
-            docker stop product-comparison-app || true
-            docker rm product-comparison-app || true
+            # Parada total para deploy limpo
+            docker stop product-comparison-app prometheus grafana || true
+            docker rm product-comparison-app prometheus grafana || true
+
+            # 4. APP JAVA
             docker run -d \
               --name product-comparison-app \
               --network monitoring-network \
-              --network-alias product-comparison-app \
               -p 8080:8080 \
               -e SPRING_SQL_INIT_MODE=always \
-              -e SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION=true \
-              -e SPRING_SQL_INIT_PLATFORM=h2 \
               ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
-            # 5. SOBE O PROMETHEUS (AJUSTADO PARA SUB-PATH)
-            docker stop prometheus || true
-            docker rm prometheus || true
+            # 5. PROMETHEUS (Com flags de sub-path)
             docker run -d \
               --name prometheus \
               --network monitoring-network \
-              --network-alias prometheus \
               -p 9090:9090 \
               -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
               prom/prometheus \
@@ -96,24 +93,20 @@ jobs:
               --web.external-url=https://miguelprogrammer-challenge.duckdns.org/prometheus/ \
               --web.route-prefix=/
 
-            # 6. SOBE O GRAFANA
-            docker stop grafana || true
-            docker rm grafana || true
+            # 6. GRAFANA
             docker volume create grafana-storage || true
             docker run -d \
               --name grafana \
               --user root \
               --network monitoring-network \
-              --network-alias grafana \
               -p 3000:3000 \
               -v grafana-storage:/var/lib/grafana \
-              -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
-              -e "GF_SECURITY_ADMIN_USER=admin" \
-              -e "GF_USERS_ALLOW_SIGN_UP=false" \
-              -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-              -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
+              -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
               -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
+              -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
+              -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
+              -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
               grafana/grafana:latest
-  
+            
             # 7. Cleanup
             docker image prune -f
