@@ -43,7 +43,7 @@ jobs:
       - name: "Push para o Docker Hub"
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
-  # FASE 2: DEPLOY NA AWS EC2 (Monitoramento + App)
+  # FASE 2: DEPLOY NA AWS EC2
   deploy-ec2:
     name: "2. Deploy AWS EC2"
     needs: build-e-entrega
@@ -56,14 +56,14 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. Autenticação e Pull
+            # 1. Login e Pull
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
             
-            # 2. Criar Rede Interna (Permite que containers se achem pelo nome)
+            # 2. Criar Rede Interna
             docker network create monitoring-network || true
 
-            # 3. Configuração Automática do Prometheus na EC2
+            # 3. MELHORIA: Configuração do Prometheus (Ajustada para o Host Correto)
             mkdir -p ~/prometheus
             cat <<EOF > ~/prometheus/prometheus.yml
             global:
@@ -72,14 +72,11 @@ jobs:
               - job_name: 'spring-boot-app'
                 metrics_path: '/actuator/prometheus'
                 static_configs:
+                  # Usamos o nome do container na rede Docker para evitar problemas de DNS externo
                   - targets: ['product-comparison-app:8080']
             EOF
 
-            # 4. GESTÃO DO APP JAVA (Limpeza por porta e nome)
-            CONTAINER_PORT_8080=$(docker ps -q --filter "publish=8080")
-            if [ ! -z "$CONTAINER_PORT_8080" ]; then
-              docker stop $CONTAINER_PORT_8080 && docker rm $CONTAINER_PORT_8080
-            fi
+            # 4. GESTÃO DO APP JAVA
             docker stop product-comparison-app || true
             docker rm product-comparison-app || true
             
@@ -92,7 +89,7 @@ jobs:
               -e SPRING_SQL_INIT_PLATFORM=h2 \
               ${{ secrets.DOCKERHUB_USERNAME }}/product-comparison-app:latest
 
-            # 5. GESTÃO DO PROMETHEUS (Porta 9090)
+            # 5. GESTÃO DO PROMETHEUS
             docker stop prometheus || true
             docker rm prometheus || true
             docker run -d \
@@ -102,17 +99,18 @@ jobs:
               -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
               prom/prometheus
 
-            # 6. GESTÃO DO GRAFANA (Porta 3000)
+            # 6. GESTÃO DO GRAFANA
             if [ ! "$(docker ps -q -f name=grafana)" ]; then
                 docker rm -f grafana || true
                 docker run -d \
                   --name grafana \
                   --network monitoring-network \
                   -p 3000:3000 \
+                  -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
+                  -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
                   grafana/grafana
             fi
             
-            # 7. Limpeza
             docker image prune -f
 
   # FASE 3: AUTOMAÇÃO DE PULL REQUEST
@@ -126,21 +124,11 @@ jobs:
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
-
       - name: "Criar Pull Request"
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release: Full Stack Monitoring"
-          body: |
-            ### 🤖 Relatório de Deploy
-            - ✅ **App:** 'product-comparison-app' atualizado na porta 8080.
-            - ✅ **Data.sql:** Forçado via variáveis de ambiente.
-            - ✅ **Prometheus:** Configurado e lendo métricas da porta 8080.
-            - ✅ **Grafana:** Ativo na porta 3000.
-            - ✅ **Rede:** Todos os containers na 'monitoring-network'.
-          labels: |
-            automated-pr
-            ready-for-merge
+          title: "🚀 Release: Monitoramento e Correção de Rede"
+          body: "✅ Correção da rota do Prometheus para usar comunicação interna Docker."
