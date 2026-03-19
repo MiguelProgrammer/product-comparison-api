@@ -1,11 +1,11 @@
-name: Pipeline CI/CD Java 21 (Final - Sem JaCoCo)
+name: Pipeline CI/CD Java 21
 
 on:
   push:
     branches: [ "developer" ]
 
 jobs:
-  # FASE 1: TESTES UNITÁRIOS E DE INTEGRAÇÃO
+  # FASE 1: EXECUÇÃO DE TESTES
   testes:
     name: "1. Executar Testes"
     runs-on: ubuntu-latest
@@ -20,9 +20,9 @@ jobs:
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: "Executar JUnit (Surefire & Failsafe)"
-        # mvn verify garante que tanto os testes unitários quanto os E2E rodem.
-        # Se algum teste falhar, o pipeline para aqui.
+      - name: "Executar JUnit e Integração"
+        # O comando 'verify' garante que tanto os testes unitários (Surefire)
+        # quanto os testes de integração/E2E (Failsafe) sejam executados.
         run: mvn clean verify
 
   # FASE 2: DOCKER (BUILD, SCAN E PUSH)
@@ -41,14 +41,14 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: "Build da Imagem"
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME}/app-java-21:latest .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
 
       - name: "Varredura de Segurança (Trivy)"
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest'
           format: 'table'
-          exit-code: '1'
+          exit-code: '1' # Interrompe o pipeline se encontrar vulnerabilidades Críticas/Altas
           severity: 'CRITICAL,HIGH'
 
       - name: "Push da Imagem Validada"
@@ -67,12 +67,20 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Login no Docker Hub dentro da instância
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            
+            # Baixa a nova imagem
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            
+            # Para e remove o container antigo se ele existir
             docker stop app-producao || true
             docker rm app-producao || true
-            # Deploy na porta 8080
+            
+            # Executa o novo container mapeando a porta 8080
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
+            
+            # Limpa imagens antigas sem uso (economia de espaço)
             docker image prune -f
 
   # FASE 4: AUTOMAÇÃO DE PULL REQUEST
@@ -93,12 +101,15 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release Automática: Dev -> Main"
+          title: "🚀 Release: Developer -> Main"
           body: |
-            ### 🤖 Relatório de Pipeline
-            - ✅ Testes Unitários e E2E concluídos.
-            - ✅ Imagem Docker enviada ao Hub.
-            - ✅ Segurança validada pelo Trivy.
-            - ✅ Deploy realizado na EC2 (Porta 8080).
+            ### 🤖 Relatório Automático de CI/CD
+            - ✅ **Testes:** JUnit e E2E executados com sucesso.
+            - ✅ **Docker:** Imagem buildada e enviada ao Docker Hub.
+            - ✅ **Segurança:** Scan Trivy aprovado (Sem Critical/High).
+            - ✅ **Deploy:** Aplicação atualizada na AWS EC2 (Porta 8080).
+            
+            *Este PR foi gerado automaticamente após o sucesso de todas as etapas.*
           labels: |
             automated-pr
+            ready-for-merge
