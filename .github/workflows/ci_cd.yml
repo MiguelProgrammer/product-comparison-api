@@ -105,7 +105,7 @@ jobs:
               -e "GF_SECURITY_ADMIN_USER=admin" \
               -e "GF_USERS_ALLOW_SIGN_UP=false" \
               -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
+              -e "GF_SERVER_ROOT_URL=/grafana/" \
               -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
               -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
               grafana/grafana:latest
