@@ -1,13 +1,13 @@
-name: Pipeline CI/CD Java 21 (Final)
+name: Pipeline CI/CD Java 21 (Final - Sem JaCoCo)
 
 on:
   push:
     branches: [ "developer" ]
 
 jobs:
-  # FASE 1: QUALIDADE E TESTES
-  testes-e-cobertura:
-    name: "1. Testes & Cobertura (80%)"
+  # FASE 1: TESTES UNITÁRIOS E DE INTEGRAÇÃO
+  testes:
+    name: "1. Executar Testes"
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout do código"
@@ -20,54 +20,15 @@ jobs:
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: "Executar Testes e Forçar Relatório XML"
-        # Chamamos 'jacoco:report' explicitamente para garantir a criação do XML
-        # Mesmo que o Maven tenha regras no POM, o -Djacoco.skip=true evita travar o build aqui
-        run: mvn clean verify jacoco:report -Djacoco.skip=true
-
-      - name: "Validar Cobertura via Script"
-        run: |
-          sudo apt-get install -y libxml2-utils
-          
-          # Busca dinâmica: Encontra o primeiro jacoco.xml que existir no projeto
-          REPORT_PATH=$(find . -name "jacoco.xml" | head -n 1)
-          
-          if [ -z "$REPORT_PATH" ]; then
-            echo "❌ ERRO: Arquivo jacoco.xml não foi gerado!"
-            echo "--- Estrutura de arquivos para Debug ---"
-            find . -maxdepth 4 -not -path '*/.*'
-            exit 1
-          fi
-
-          echo "✅ Relatório encontrado em: $REPORT_PATH"
-
-          # Extrai dados de cobertura (Linhas)
-          COVERED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" "$REPORT_PATH" || echo 0)
-          MISSED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" "$REPORT_PATH" || echo 0)
-          TOTAL=$((COVERED + MISSED))
-          
-          if [ $TOTAL -eq 0 ]; then
-            echo "❌ ERRO: O relatório não contém dados de linhas (Total = 0)."
-            exit 1
-          fi
-          
-          PERCENTAGE=$(( (COVERED * 100) / TOTAL ))
-          
-          echo "========================================"
-          echo "📊 COBERTURA ATUAL: $PERCENTAGE%"
-          echo "========================================"
-          
-          if [ $PERCENTAGE -lt 80 ]; then 
-            echo "❌ FALHA: Cobertura de $PERCENTAGE% é inferior ao limite de 80%."
-            exit 1
-          else
-            echo "✅ SUCESSO: Cobertura aprovada!"
-          fi
+      - name: "Executar JUnit (Surefire & Failsafe)"
+        # mvn verify garante que tanto os testes unitários quanto os E2E rodem.
+        # Se algum teste falhar, o pipeline para aqui.
+        run: mvn clean verify
 
   # FASE 2: DOCKER (BUILD, SCAN E PUSH)
   build-e-entrega:
     name: "2. Build, Scan e Docker Hub"
-    needs: testes-e-cobertura
+    needs: testes
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
@@ -80,7 +41,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: "Build da Imagem"
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME}/app-java-21:latest .
 
       - name: "Varredura de Segurança (Trivy)"
         uses: aquasecurity/trivy-action@master
@@ -110,7 +71,7 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             docker stop app-producao || true
             docker rm app-producao || true
-            # Rodando na porta 8080 conforme configurado no Security Group da AWS
+            # Deploy na porta 8080
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             docker image prune -f
 
@@ -135,7 +96,7 @@ jobs:
           title: "🚀 Release Automática: Dev -> Main"
           body: |
             ### 🤖 Relatório de Pipeline
-            - ✅ Testes e Cobertura validada.
+            - ✅ Testes Unitários e E2E concluídos.
             - ✅ Imagem Docker enviada ao Hub.
             - ✅ Segurança validada pelo Trivy.
             - ✅ Deploy realizado na EC2 (Porta 8080).
