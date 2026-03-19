@@ -5,7 +5,7 @@ on:
     branches: [ "developer" ]
 
 jobs:
-  # FASE 1: QUALIDADE E TESTES
+  # FASE 1: QUALIDADE E TESTES (Cálculo manual para evitar que o Maven trave)
   testes-e-cobertura:
     name: "1. Testes & Cobertura (80%)"
     runs-on: ubuntu-latest
@@ -20,11 +20,44 @@ jobs:
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: "Executar JUnit e JaCoCo"
-        run: mvn clean verify
+      - name: "Executar JUnit e Gerar Relatório JaCoCo"
+        # O flag -Djacoco.skip=true evita que o plugin do Maven trave o build,
+        # permitindo que o próximo passo leia o relatório e nos dê a porcentagem real.
+        run: mvn clean verify -Djacoco.skip=true
 
-      - name: "Validar Cobertura"
-        run: mvn clean verify -Dmaven.test.failure.ignore=false
+      - name: "Validar Cobertura via Script"
+        run: |
+          sudo apt-get install -y libxml2-utils
+          # Localiza o arquivo de relatório
+          REPORT_PATH="target/site/jacoco/jacoco.xml"
+          
+          if [ ! -f "$REPORT_PATH" ]; then
+            echo "❌ ERRO: Relatório JaCoCo não encontrado em $REPORT_PATH"
+            exit 1
+          fi
+
+          # Extrai os dados de cobertura de linhas
+          COVERED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" $REPORT_PATH)
+          MISSED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" $REPORT_PATH)
+          TOTAL=$((COVERED + MISSED))
+          
+          if [ $TOTAL -eq 0 ]; then
+            echo "❌ ERRO: Total de linhas é zero. Verifique seus testes."
+            exit 1
+          fi
+          
+          PERCENTAGE=$(( (COVERED * 100) / TOTAL ))
+          
+          echo "========================================"
+          echo "📊 COBERTURA ATUAL: $PERCENTAGE%"
+          echo "========================================"
+          
+          if [ $PERCENTAGE -lt 80 ]; then 
+            echo "❌ FALHA: A cobertura de $PERCENTAGE% é inferior ao limite de 80%."
+            exit 1
+          else
+            echo "✅ SUCESSO: Cobertura aprovada!"
+          fi
 
   # FASE 2: DOCKER (BUILD, SCAN E PUSH)
   build-e-entrega:
@@ -68,20 +101,20 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Autenticação no Docker Hub dentro da instância
+            # Login no Docker Hub dentro da EC2
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            # Atualiza para a imagem que acabamos de subir
+            # Pull da nova imagem
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Para e limpa o container anterior (se existir)
+            # Remove container antigo se existir
             docker stop app-producao || true
             docker rm app-producao || true
             
-            # Executa o novo container na porta 8080
+            # Sobe o novo na porta 8080 (Mapeando porta da EC2 para porta do Spring)
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             
-            # Limpeza de imagens antigas para economizar espaço em disco
+            # Limpa imagens antigas (Dangling images)
             docker image prune -f
 
   # FASE 4: AUTOMAÇÃO DE PULL REQUEST
@@ -105,13 +138,12 @@ jobs:
           title: "🚀 Release: Developer -> Main"
           body: |
             ### 🤖 Relatório de Automação CI/CD
-            As seguintes etapas foram concluídas com sucesso:
-            - ✅ **Testes Unitários:** Aprovados.
-            - ✅ **Cobertura de Código:** Superior a 80%.
-            - ✅ **Segurança:** Imagem Docker validada pelo Trivy (Sem Critical/High).
-            - ✅ **Deploy:** Aplicação atualizada na AWS EC2 (Porta 8080).
+            - ✅ **Testes & JaCoCo:** Aprovados (Min 80%).
+            - ✅ **Docker Hub:** Imagem buildada e enviada.
+            - ✅ **Segurança:** Scan Trivy sem vulnerabilidades críticas.
+            - ✅ **AWS EC2:** Deploy realizado na porta 8080.
             
-            *Este PR foi gerado automaticamente. Verifique os logs se necessário.*
+            *PR gerado automaticamente após sucesso no pipeline.*
           labels: |
             automated-pr
-            ready-for-review
+            ready-for-merge
