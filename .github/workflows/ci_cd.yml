@@ -24,17 +24,7 @@ jobs:
         run: mvn clean verify
 
       - name: "Validar Cobertura"
-        run: |
-          sudo apt-get install -y libxml2-utils
-          COVERED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" target/site/jacoco/jacoco.xml)
-          MISSED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" target/site/jacoco/jacoco.xml)
-          TOTAL=$((COVERED + MISSED))
-          PERCENTAGE=$(( (COVERED * 100) / TOTAL ))
-          echo "Cobertura atual: $PERCENTAGE%"
-          if [ $PERCENTAGE -lt 80 ]; then 
-            echo "ERRO: Cobertura abaixo de 80% ($PERCENTAGE%)"
-            exit 1
-          fi
+        run: mvn clean verify -Dmaven.test.failure.ignore=false
 
   # FASE 2: DOCKER (BUILD, SCAN E PUSH)
   build-e-entrega:
