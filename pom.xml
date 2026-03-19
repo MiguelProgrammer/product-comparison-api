@@ -208,18 +208,13 @@
                         </goals>
                     </execution>
                     <execution>
-                        <id>prepare-agent-it</id>
-                        <goals>
-                            <goal>prepare-agent-integration</goal>
-                        </goals>
-                    </execution>
-                    <execution>
                         <id>report</id>
-                        <phase>verify</phase> <goals>
-                        <goal>report</goal>
-                        <goal>report-integration</goal>
-                    </goals>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
                         <configuration>
+                            <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
                             <formats>
                                 <format>XML</format>
                             </formats>
