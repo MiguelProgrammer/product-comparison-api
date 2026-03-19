@@ -38,6 +38,7 @@ public class CompareServiceImpl implements CompareService {
     @Override
     @Cacheable(value = "product-comparisons", key = "#productIds.hashCode()")
     public Mono<CompareResponse> compareProducts(List<Long> productIds) {
+
         if (productIds == null || productIds.isEmpty()) {
             log.error("COMPARISON_ERROR reason=empty_product_list productIds={}", productIds);
             businessMetrics.recordFailedComparison();
