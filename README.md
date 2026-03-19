@@ -124,11 +124,11 @@ docker-compose up -d
 ```
 
 **Access Points:**
-- API: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 (admin/admin123)
-- Zipkin Traces: http://localhost:9411
+- API: https://miguelprogrammer-challenge.duckdns.org
+- Swagger UI: https://miguelprogrammer-challenge.duckdns.org/swagger-ui/index.html
+- Prometheus: https://miguelprogrammer-challenge.duckdns.org:9090
+- Grafana: https://miguelprogrammer-challenge.duckdns.org:3000
+- Zipkin Traces: https://miguelprogrammer-challenge.duckdns.org:9411
 
 ### Local Development
 
@@ -152,10 +152,10 @@ mvn allure:serve
 
 ```bash
 # Application health
-curl http://localhost:8080/actuator/health
+curl https://miguelprogrammer-challenge.duckdns.org/actuator/health
 
 # Prometheus metrics
-curl http://localhost:8080/actuator/prometheus | head -20
+curl https://miguelprogrammer-challenge.duckdns.org/actuator/prometheus | head -20
 ```
 
 ---
@@ -186,7 +186,7 @@ POST   /api/v1/compare/products     Compare multiple products
 ### Example: Create Product
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/product \
+curl -X POST https://miguelprogrammer-challenge.duckdns.org/api/v1/product \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Laptop Pro",
@@ -201,7 +201,7 @@ curl -X POST http://localhost:8080/api/v1/product \
 ### Example: Compare Products
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/compare/products \
+curl -X POST https://miguelprogrammer-challenge.duckdns.org/api/v1/compare/products \
   -H "Content-Type: application/json" \
   -d '{"productIds": [1, 2, 3]}'
 ```
@@ -217,7 +217,7 @@ curl -X POST http://localhost:8080/api/v1/compare/products \
 
 ### Interactive Documentation
 
-**Swagger UI**: http://localhost:8080/swagger-ui.html
+**Swagger UI**: https://miguelprogrammer-challenge.duckdns.org/swagger-ui/index.html
 - Try-it-out functionality
 - Request/response models
 - Parameter validation details
@@ -266,7 +266,7 @@ histogram_quantile(0.95, rate(http.requests.duration_seconds_bucket[5m]))
 
 ### Grafana Dashboards
 
-Access: http://localhost:3000
+Access: https://miguelprogrammer-challenge.duckdns.org:3000
 
 **Dashboards provided:**
 - Application Overview - Health status, uptime
@@ -276,7 +276,7 @@ Access: http://localhost:3000
 
 ### Distributed Tracing
 
-**Zipkin**: http://localhost:9411
+**Zipkin**: https://miguelprogrammer-challenge.duckdns.org:9411
 
 Each request is traced across:
 - Controller → Service → Repository → Database
@@ -438,9 +438,9 @@ EC2_SSH_KEY             → EC2 private SSH key
 ```
 
 **Access Deployed App:**
-- API: http://{EC2_IP}:8080
-- Swagger: http://{EC2_IP}:8080/swagger-ui.html
-- Grafana: http://{EC2_IP}:3000
+- API: https://miguelprogrammer-challenge.duckdns.org
+- Swagger: https://miguelprogrammer-challenge.duckdns.org/swagger-ui/index.html
+- Grafana: https://miguelprogrammer-challenge.duckdns.org:3000
 
 ---
 
