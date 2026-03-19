@@ -90,24 +90,22 @@ jobs:
               -v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
               prom/prometheus
 
-            # 6. SOBE O GRAFANA (Sub-path /grafana/)
-            # 6. SOBE O GRAFANA (Sub-path /grafana/)
+            # 6. SOBE O GRAFANA
             docker stop grafana || true
             docker rm grafana || true
             docker volume create grafana-storage || true
             docker run -d \
-            --name grafana \
-            --user root \
-            --network monitoring-network \
-            --network-alias grafana \
-            -p 3000:3000 \
-            -v grafana-storage:/var/lib/grafana \
-            -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
-            -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
-            -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
-            -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
-            -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
-            grafana/grafana:latest
+              --name grafana \
+              --user root \
+              --network monitoring-network \
+              --network-alias grafana \
+              -p 3000:3000 \
+              -v grafana-storage:/var/lib/grafana \
+              -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
+              -e "GF_SECURITY_ADMIN_USER=admin" \
+              -e "GF_USERS_ALLOW_SIGN_UP=false" \
+              -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
+              grafana/grafana:latest
   
             # 7. Cleanup
             docker image prune -f
