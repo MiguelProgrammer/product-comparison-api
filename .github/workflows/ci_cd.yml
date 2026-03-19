@@ -1,68 +1,64 @@
-name: Pipeline CI/CD Java 21 (Resiliente)
+name: Pipeline CI/CD Java 21 (Final)
 
 on:
   push:
     branches: [ "developer" ]
 
 jobs:
-  # FASE 1: QUALIDADE E TESTES (Soma Unitários + E2E)
+  # FASE 1: QUALIDADE E TESTES
   testes-e-cobertura:
-    name: "1. Testes & Cobertura"
+    name: "1. Testes & Cobertura (80%)"
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout do código"
         uses: actions/checkout@v4
 
-      - name: "Configurar Amazon Corretto 21"
+      - name: "Configurar Java 21"
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: "Executar Todos os Testes"
-        # Usamos verify para garantir que os testes E2E (Failsafe) rodem.
-        # -Djacoco.skip=true evita que o Maven trave o build, deixando o script abaixo decidir.
-        run: mvn clean verify -Djacoco.skip=true
+      - name: "Executar Testes e Forçar Relatório XML"
+        # Chamamos 'jacoco:report' explicitamente para garantir a criação do XML
+        # Mesmo que o Maven tenha regras no POM, o -Djacoco.skip=true evita travar o build aqui
+        run: mvn clean verify jacoco:report -Djacoco.skip=true
 
-      - name: "Validar Cobertura Consolidada"
+      - name: "Validar Cobertura via Script"
         run: |
           sudo apt-get install -y libxml2-utils
           
-          # Busca todos os relatórios gerados (jacoco.xml e jacoco-it.xml)
-          FILES=$(find . -name "jacoco.xml" -o -name "jacoco-it.xml")
+          # Busca dinâmica: Encontra o primeiro jacoco.xml que existir no projeto
+          REPORT_PATH=$(find . -name "jacoco.xml" | head -n 1)
           
-          if [ -z "$FILES" ]; then
-            echo "❌ ERRO: Nenhum relatório JaCoCo encontrado! Verifique o pom.xml."
+          if [ -z "$REPORT_PATH" ]; then
+            echo "❌ ERRO: Arquivo jacoco.xml não foi gerado!"
+            echo "--- Estrutura de arquivos para Debug ---"
+            find . -maxdepth 4 -not -path '*/.*'
             exit 1
           fi
 
-          TOTAL_COVERED=0
-          TOTAL_MISSED=0
+          echo "✅ Relatório encontrado em: $REPORT_PATH"
 
-          for f in $FILES; do
-            echo "📖 Lendo relatório: $f"
-            C=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" "$f" || echo 0)
-            M=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" "$f" || echo 0)
-            TOTAL_COVERED=$((TOTAL_COVERED + C))
-            TOTAL_MISSED=$((TOTAL_MISSED + M))
-          done
+          # Extrai dados de cobertura (Linhas)
+          COVERED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@covered)" "$REPORT_PATH" || echo 0)
+          MISSED=$(xmllint --xpath "string(//report/counter[@type='LINE']/@missed)" "$REPORT_PATH" || echo 0)
+          TOTAL=$((COVERED + MISSED))
           
-          TOTAL_LINES=$((TOTAL_COVERED + TOTAL_MISSED))
-          
-          if [ $TOTAL_LINES -eq 0 ]; then
-            echo "❌ ERRO: Nenhuma linha de código mapeada."
+          if [ $TOTAL -eq 0 ]; then
+            echo "❌ ERRO: O relatório não contém dados de linhas (Total = 0)."
             exit 1
           fi
           
-          PERCENTAGE=$(( (TOTAL_COVERED * 100) / TOTAL_LINES ))
+          PERCENTAGE=$(( (COVERED * 100) / TOTAL ))
           
           echo "========================================"
-          echo "📊 COBERTURA TOTAL (Unit + E2E): $PERCENTAGE%"
+          echo "📊 COBERTURA ATUAL: $PERCENTAGE%"
           echo "========================================"
           
           if [ $PERCENTAGE -lt 80 ]; then 
-            echo "❌ FALHA: A cobertura de $PERCENTAGE% é inferior a 80%."
+            echo "❌ FALHA: Cobertura de $PERCENTAGE% é inferior ao limite de 80%."
             exit 1
           else
             echo "✅ SUCESSO: Cobertura aprovada!"
@@ -114,7 +110,7 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             docker stop app-producao || true
             docker rm app-producao || true
-            # Mapeamento 8080:8080 para sua regra de Security Group da AWS
+            # Rodando na porta 8080 conforme configurado no Security Group da AWS
             docker run -d --name app-producao -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/app-java-21:latest
             docker image prune -f
 
@@ -136,12 +132,12 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: developer
           base: main
-          title: "🚀 Release: Developer -> Main"
+          title: "🚀 Release Automática: Dev -> Main"
           body: |
-            ### 🤖 Relatório de Automação CI/CD
-            - ✅ **Testes & JaCoCo:** Consolidados (Unit + E2E).
-            - ✅ **Docker Hub:** Imagem atualizada.
-            - ✅ **Segurança:** Scan Trivy aprovado.
-            - ✅ **AWS EC2:** Deploy realizado na porta 8080.
+            ### 🤖 Relatório de Pipeline
+            - ✅ Testes e Cobertura validada.
+            - ✅ Imagem Docker enviada ao Hub.
+            - ✅ Segurança validada pelo Trivy.
+            - ✅ Deploy realizado na EC2 (Porta 8080).
           labels: |
             automated-pr
