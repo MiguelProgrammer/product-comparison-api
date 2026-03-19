@@ -110,27 +110,12 @@ jobs:
               -e "GF_INSTALL_PLUGINS=grafana-piechart-panel" \
               -e "GF_SERVER_SERVE_FROM_SUB_PATH=true" \
               -e "GF_SERVER_DOMAIN=miguelprogrammer-challenge.duckdns.org" \
+              -e "GF_SERVER_ROOT_URL=https://miguelprogrammer-challenge.duckdns.org/grafana/" \
+              -e "GF_SECURITY_COOKIE_SAMESITE=lax" \
+              -e "GF_SECURITY_COOKIE_SECURE=true" \
+              -e "GF_SECURITY_ALLOW_EMBED_FRAMES=true" \
+              -e "GF_SERVER_PROTOCOL=http" \
               grafana/grafana:latest
   
             # 7. Cleanup
             docker image prune -f
-
-  # FASE 3: AUTOMAÇÃO DE PULL REQUEST
-  abrir-pull-request:
-    name: "3. Abrir PR para Main"
-    needs: deploy-ec2
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
-    steps:
-      - name: "Checkout"
-        uses: actions/checkout@v4
-      - name: "Criar Pull Request"
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: developer
-          base: main
-          title: "🚀 Release: Monitoramento Corrigido"
-          body: "Ajuste de variáveis do Grafana e Prometheus via sub-path."
