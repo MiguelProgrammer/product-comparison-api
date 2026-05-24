@@ -1,184 +1,138 @@
-```yaml
-name: CI/CD Deploy EC2
+spring:
+  application:
+    name: product-comparison-api
 
-on:
-  push:
-    branches:
-      - main
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
-env:
-  IMAGE_NAME: product-comparison-app
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE} # MELHORIA: Mantém o banco vivo enquanto o app rodar
+    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+      pool-name: ProductComparisonHikariCP
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  h2:
+    console:
+      enabled: ${H2_CONSOLE_ENABLED:true}
+      path: /h2-console
+      settings:
+        web-allow-others: true
 
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
+    defer-datasource-initialization: true # Mantido: Essencial para o data.sql rodar DEPOIS das tabelas
+    properties:
+      hibernate:
+        format_sql: false
+        highlight_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
 
-      - name: Configurar Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}
+      platform: h2
+      # ADICIONE ESTA LINHA ABAIXO:
+      scripts: classpath:data.sql
+      continue-on-error: true
 
-      - name: Dar permissão ao Maven Wrapper
-        run: chmod +x mvnw
+  # MELHORIA: Movido para dentro do bloco spring para sintaxe correta
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration # Opcional: só se o H2 console pedir login e você não tiver security configurado
 
-      - name: Build da aplicação
-        run: ./mvnw clean package -DskipTests
+  messages:
+    encoding: UTF-8
+    basename: messages
 
-      - name: Login Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+  cache:
+    type: simple
+    cache-names:
+      - products
+      - product-comparisons
 
-      - name: Build da imagem Docker
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
+  tracing:
+    enabled: ${TRACING_ENABLED:true}
+    zipkin:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+    sampling:
+      probability: ${TRACING_SAMPLING:0.1}
 
-      - name: Push da imagem Docker
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: native # Mantido: Crucial para HTTPS no Nginx
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        http-only: true
 
-      - name: Deploy na EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 20m
-          debug: true
+logging:
+  level:
+    org.hibernate.SQL: ${LOG_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS:WARN}
+    com.compareproduct.meli: ${LOG_APP:INFO}
+    io.github.resilience4j: ${LOG_RESILIENCE:INFO}
+    org.springframework.web: ${LOG_WEB:INFO}
+    root: ${LOG_ROOT:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE:logs/product-comparison-api.log}
 
-          script: |
-            set -xe
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:true}
+    display-query-params-request: true
 
-            echo "======================================"
-            echo "ATUALIZANDO SISTEMA"
-            echo "======================================"
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*" # MELHORIA: Facilita o monitoramento completo (pode restringir depois)
+      base-path: /actuator
+      cors:
+        allowed-origins: "*" # MELHORIA: Para evitar o erro de 'Failed to fetch' no dashboard do Grafana/Prometheus
+        allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true # MELHORIA: Útil para o Kubernetes ou scripts de check na EC2
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:production}
 
-            sudo apt-get update -y || true
-
-            echo "======================================"
-            echo "INICIANDO DOCKER"
-            echo "======================================"
-
-            sudo systemctl start docker
-            sudo systemctl enable docker
-
-            docker --version
-            docker ps
-
-            echo "======================================"
-            echo "LOGIN DOCKER HUB"
-            echo "======================================"
-
-            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-            echo "======================================"
-            echo "CRIANDO REDE"
-            echo "======================================"
-
-            docker network create monitoring-network || true
-
-            echo "======================================"
-            echo "REMOVENDO CONTAINERS ANTIGOS"
-            echo "======================================"
-
-            docker stop product-comparison-app || true
-            docker rm product-comparison-app || true
-
-            docker stop zipkin || true
-            docker rm zipkin || true
-
-            docker stop prometheus || true
-            docker rm prometheus || true
-
-            docker stop grafana || true
-            docker rm grafana || true
-
-            echo "======================================"
-            echo "PULL DA NOVA IMAGEM"
-            echo "======================================"
-
-            docker pull ${{ secrets.DOCKER_USERNAME }}/product-comparison-app:latest
-
-            echo "======================================"
-            echo "SUBINDO ZIPKIN"
-            echo "======================================"
-
-            docker run -d \
-              --name zipkin \
-              --network monitoring-network \
-              -p 9411:9411 \
-              openzipkin/zipkin:2.24
-
-            echo "======================================"
-            echo "SUBINDO PROMETHEUS"
-            echo "======================================"
-
-            docker run -d \
-              --name prometheus \
-              --network monitoring-network \
-              -p 9090:9090 \
-              prom/prometheus:v2.45.0
-
-            echo "======================================"
-            echo "SUBINDO GRAFANA"
-            echo "======================================"
-
-            docker run -d \
-              --name grafana \
-              --network monitoring-network \
-              -p 3000:3000 \
-              -e GF_SECURITY_ADMIN_PASSWORD=admin123 \
-              grafana/grafana:10.0.0
-
-            echo "======================================"
-            echo "SUBINDO APLICAÇÃO"
-            echo "======================================"
-
-            docker run -d \
-              --name product-comparison-app \
-              --network monitoring-network \
-              -p 8080:8080 \
-              -e SPRING_PROFILES_ACTIVE=docker \
-              -e DATABASE_URL=jdbc:h2:mem:product \
-              -e TRACING_ENABLED=true \
-              -e ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans \
-              -e MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans \
-              -e LOG_LEVEL=INFO \
-              ${{ secrets.DOCKER_USERNAME }}/product-comparison-app:latest
-
-            echo "======================================"
-            echo "AGUARDANDO APLICAÇÃO"
-            echo "======================================"
-
-            sleep 30
-
-            echo "======================================"
-            echo "VALIDANDO CONTAINERS"
-            echo "======================================"
-
-            docker ps
-
-            echo "======================================"
-            echo "LOGS DA APLICAÇÃO"
-            echo "======================================"
-
-            docker logs product-comparison-app --tail 100
-
-            echo "======================================"
-            echo "TESTANDO HEALTHCHECK"
-            echo "======================================"
-
-            curl http://localhost:8080/actuator/health || true
-
-            echo "======================================"
-            echo "DEPLOY FINALIZADO"
-            echo "======================================"
-```
+resilience4j:
+  circuitbreaker:
+    instances:
+      product-service:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        register-health-indicator: true # MELHORIA: Expõe o status no /actuator/health
+  ratelimiter:
+    instances:
+      comparison-api:
+        limit-for-period: 100
+        limit-refresh-period: 1m
+        register-health-indicator: true
