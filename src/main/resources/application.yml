@@ -1,158 +1,184 @@
 ```yaml
-spring:
-  application:
-    name: product-comparison-api
+name: CI/CD Deploy EC2
 
-  lifecycle:
-    timeout-per-shutdown-phase: 30s
+on:
+  push:
+    branches:
+      - main
 
-  datasource:
-    url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
-    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
-    username: ${DATABASE_USERNAME:sa}
-    password: ${DATABASE_PASSWORD:}
+env:
+  IMAGE_NAME: product-comparison-app
 
-    hikari:
-      connection-timeout: 20000
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      max-lifetime: 1200000
-      leak-detection-threshold: 60000
-      pool-name: ProductComparisonHikariCP
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-  h2:
-    console:
-      enabled: ${H2_CONSOLE_ENABLED:true}
-      path: /h2-console
-      settings:
-        web-allow-others: true
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-  jpa:
-    hibernate:
-      ddl-auto: ${DDL_AUTO:update}
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
 
-    show-sql: ${SHOW_SQL:false}
+      - name: Dar permissão ao Maven Wrapper
+        run: chmod +x mvnw
 
-    defer-datasource-initialization: true
+      - name: Build da aplicação
+        run: ./mvnw clean package -DskipTests
 
-    properties:
-      hibernate:
-        format_sql: false
-        highlight_sql: true
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-  sql:
-    init:
-      mode: ${SQL_INIT_MODE:always}
-      platform: h2
-      scripts: classpath:data.sql
-      continue-on-error: true
+      - name: Build da imagem Docker
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
 
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - name: Push da imagem Docker
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
-  messages:
-    encoding: UTF-8
-    basename: messages
+      - name: Deploy na EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 20m
+          debug: true
 
-  cache:
-    type: simple
-    cache-names:
-      - products
-      - product-comparisons
+          script: |
+            set -xe
 
-server:
-  port: ${SERVER_PORT:8080}
+            echo "======================================"
+            echo "ATUALIZANDO SISTEMA"
+            echo "======================================"
 
-  forward-headers-strategy: native
+            sudo apt-get update -y || true
 
-  shutdown: graceful
+            echo "======================================"
+            echo "INICIANDO DOCKER"
+            echo "======================================"
 
-  servlet:
-    session:
-      cookie:
-        http-only: true
+            sudo systemctl start docker
+            sudo systemctl enable docker
 
-logging:
-  level:
-    org.hibernate.SQL: ${LOG_SQL:WARN}
-    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS:WARN}
-    com.compareproduct.meli: ${LOG_APP:INFO}
-    io.github.resilience4j: ${LOG_RESILIENCE:INFO}
-    org.springframework.web: ${LOG_WEB:INFO}
-    root: ${LOG_ROOT:INFO}
+            docker --version
+            docker ps
 
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+            echo "======================================"
+            echo "LOGIN DOCKER HUB"
+            echo "======================================"
 
-  file:
-    name: ${LOG_FILE:logs/product-comparison-api.log}
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-springdoc:
-  api-docs:
-    path: /api-docs
+            echo "======================================"
+            echo "CRIANDO REDE"
+            echo "======================================"
 
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: ${SWAGGER_ENABLED:true}
-    display-query-params-request: true
+            docker network create monitoring-network || true
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
+            echo "======================================"
+            echo "REMOVENDO CONTAINERS ANTIGOS"
+            echo "======================================"
 
-      base-path: /actuator
+            docker stop product-comparison-app || true
+            docker rm product-comparison-app || true
 
-      cors:
-        allowed-origins: "*"
-        allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-        allowed-headers: "*"
+            docker stop zipkin || true
+            docker rm zipkin || true
 
-  endpoint:
-    health:
-      show-details: always
+            docker stop prometheus || true
+            docker rm prometheus || true
 
-      probes:
-        enabled: true
+            docker stop grafana || true
+            docker rm grafana || true
 
-    prometheus:
-      enabled: true
+            echo "======================================"
+            echo "PULL DA NOVA IMAGEM"
+            echo "======================================"
 
-  metrics:
-    export:
-      prometheus:
-        enabled: true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/product-comparison-app:latest
 
-    tags:
-      application: ${spring.application.name}
-      environment: ${ENVIRONMENT:production}
+            echo "======================================"
+            echo "SUBINDO ZIPKIN"
+            echo "======================================"
 
-  tracing:
-    enabled: ${TRACING_ENABLED:true}
+            docker run -d \
+              --name zipkin \
+              --network monitoring-network \
+              -p 9411:9411 \
+              openzipkin/zipkin:2.24
 
-    sampling:
-      probability: ${TRACING_SAMPLING:0.1}
+            echo "======================================"
+            echo "SUBINDO PROMETHEUS"
+            echo "======================================"
 
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin:9411/api/v2/spans}
+            docker run -d \
+              --name prometheus \
+              --network monitoring-network \
+              -p 9090:9090 \
+              prom/prometheus:v2.45.0
 
-resilience4j:
-  circuitbreaker:
-    instances:
-      product-service:
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        sliding-window-size: 10
-        register-health-indicator: true
+            echo "======================================"
+            echo "SUBINDO GRAFANA"
+            echo "======================================"
 
-  ratelimiter:
-    instances:
-      comparison-api:
-        limit-for-period: 100
-        limit-refresh-period: 1m
-        register-health-indicator: true
+            docker run -d \
+              --name grafana \
+              --network monitoring-network \
+              -p 3000:3000 \
+              -e GF_SECURITY_ADMIN_PASSWORD=admin123 \
+              grafana/grafana:10.0.0
+
+            echo "======================================"
+            echo "SUBINDO APLICAÇÃO"
+            echo "======================================"
+
+            docker run -d \
+              --name product-comparison-app \
+              --network monitoring-network \
+              -p 8080:8080 \
+              -e SPRING_PROFILES_ACTIVE=docker \
+              -e DATABASE_URL=jdbc:h2:mem:product \
+              -e TRACING_ENABLED=true \
+              -e ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans \
+              -e MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans \
+              -e LOG_LEVEL=INFO \
+              ${{ secrets.DOCKER_USERNAME }}/product-comparison-app:latest
+
+            echo "======================================"
+            echo "AGUARDANDO APLICAÇÃO"
+            echo "======================================"
+
+            sleep 30
+
+            echo "======================================"
+            echo "VALIDANDO CONTAINERS"
+            echo "======================================"
+
+            docker ps
+
+            echo "======================================"
+            echo "LOGS DA APLICAÇÃO"
+            echo "======================================"
+
+            docker logs product-comparison-app --tail 100
+
+            echo "======================================"
+            echo "TESTANDO HEALTHCHECK"
+            echo "======================================"
+
+            curl http://localhost:8080/actuator/health || true
+
+            echo "======================================"
+            echo "DEPLOY FINALIZADO"
+            echo "======================================"
 ```
