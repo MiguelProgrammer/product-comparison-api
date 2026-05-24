@@ -6,10 +6,11 @@ spring:
     timeout-per-shutdown-phase: 30s
 
   datasource:
-    url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE} # MELHORIA: Mantém o banco vivo enquanto o app rodar
+    url: ${DATABASE_URL:jdbc:h2:mem:product;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
     driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+
     hikari:
       connection-timeout: 20000
       maximum-pool-size: 20
@@ -27,29 +28,28 @@ spring:
         web-allow-others: true
 
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: ${DDL_AUTO:update}
+
     show-sql: ${SHOW_SQL:false}
-    defer-datasource-initialization: true # Mantido: Essencial para o data.sql rodar DEPOIS das tabelas
+
+    defer-datasource-initialization: true
+
     properties:
       hibernate:
         format_sql: false
         highlight_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
 
   sql:
     init:
       mode: ${SQL_INIT_MODE:always}
       platform: h2
-      # ADICIONE ESTA LINHA ABAIXO:
       scripts: classpath:data.sql
       continue-on-error: true
 
-  # MELHORIA: Movido para dentro do bloco spring para sintaxe correta
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration # Opcional: só se o H2 console pedir login e você não tiver security configurado
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
 
   messages:
     encoding: UTF-8
@@ -61,17 +61,13 @@ spring:
       - products
       - product-comparisons
 
-  tracing:
-    enabled: ${TRACING_ENABLED:true}
-    zipkin:
-      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
-    sampling:
-      probability: ${TRACING_SAMPLING:0.1}
-
 server:
   port: ${SERVER_PORT:8080}
-  forward-headers-strategy: native # Mantido: Crucial para HTTPS no Nginx
+
+  forward-headers-strategy: native
+
   shutdown: graceful
+
   servlet:
     session:
       cookie:
@@ -85,14 +81,17 @@ logging:
     io.github.resilience4j: ${LOG_RESILIENCE:INFO}
     org.springframework.web: ${LOG_WEB:INFO}
     root: ${LOG_ROOT:INFO}
+
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
   file:
     name: ${LOG_FILE:logs/product-comparison-api.log}
 
 springdoc:
   api-docs:
     path: /api-docs
+
   swagger-ui:
     path: /swagger-ui.html
     enabled: ${SWAGGER_ENABLED:true}
@@ -102,25 +101,43 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*" # MELHORIA: Facilita o monitoramento completo (pode restringir depois)
+        include: "*"
+
       base-path: /actuator
+
       cors:
-        allowed-origins: "*" # MELHORIA: Para evitar o erro de 'Failed to fetch' no dashboard do Grafana/Prometheus
+        allowed-origins: "*"
         allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+        allowed-headers: "*"
+
   endpoint:
     health:
       show-details: always
+
       probes:
-        enabled: true # MELHORIA: Útil para o Kubernetes ou scripts de check na EC2
+        enabled: true
+
     prometheus:
       enabled: true
+
   metrics:
     export:
       prometheus:
         enabled: true
+
     tags:
       application: ${spring.application.name}
       environment: ${ENVIRONMENT:production}
+
+  tracing:
+    enabled: ${TRACING_ENABLED:true}
+
+    sampling:
+      probability: ${TRACING_SAMPLING:0.1}
+
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin:9411/api/v2/spans}
 
 resilience4j:
   circuitbreaker:
@@ -129,7 +146,8 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
-        register-health-indicator: true # MELHORIA: Expõe o status no /actuator/health
+        register-health-indicator: true
+
   ratelimiter:
     instances:
       comparison-api:
